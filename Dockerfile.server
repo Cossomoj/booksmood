@@ -1,0 +1,116 @@
+# BooksMood Server Deployment Dockerfile
+FROM node:20-alpine AS base
+
+# Устанавливаем необходимые пакеты
+RUN apk add --no-cache git openssh-client bash curl
+
+# Создаём рабочую директорию
+WORKDIR /app
+
+# Создаём .ssh директорию и устанавливаем права
+RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
+
+# Копируем SSH-ключи (они должны быть в контексте сборки)
+COPY id_ed25519 /root/.ssh/id_rsa
+COPY id_ed25519.pub /root/.ssh/id_rsa.pub
+
+# Устанавливаем права доступа для SSH-ключей
+RUN chmod 600 /root/.ssh/id_rsa /root/.ssh/id_rsa.pub
+
+# Добавляем GitHub в known_hosts
+RUN ssh-keyscan -H github.com >> /root/.ssh/known_hosts
+
+# Клонируем репозиторий
+RUN git clone git@github.com:Cossomoj/booksmood.git /tmp/booksmood
+
+# Копируем проект в рабочую директорию
+RUN cp -r /tmp/booksmood/* /app/ && rm -rf /tmp/booksmood
+
+# Очищаем SSH ключи после клонирования (безопасность)
+RUN rm -rf /root/.ssh
+
+# ===========================================
+# Backend Build Stage
+# ===========================================
+FROM base AS backend-build
+
+WORKDIR /app/backend
+
+# Устанавливаем зависимости
+RUN npm ci --only=production
+
+# Генерируем Prisma клиент
+RUN npx prisma generate
+
+# Собираем backend
+RUN npm run build
+
+# ===========================================
+# Frontend Build Stage  
+# ===========================================
+FROM base AS frontend-build
+
+WORKDIR /app/frontend
+
+# Устанавливаем зависимости
+RUN npm ci
+
+# Собираем frontend для production
+RUN npm run build
+
+# ===========================================
+# Admin Build Stage
+# ===========================================
+FROM base AS admin-build
+
+WORKDIR /app/admin
+
+# Устанавливаем зависимости
+RUN npm ci
+
+# Собираем admin панель
+RUN npm run build
+
+# ===========================================
+# Production Runtime
+# ===========================================
+FROM node:20-alpine AS production
+
+# Устанавливаем runtime зависимости
+RUN apk add --no-cache curl
+
+# Создаём непривилегированного пользователя
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+WORKDIR /app
+
+# Копируем собранный backend
+COPY --from=backend-build --chown=nodejs:nodejs /app/backend/dist ./backend/dist
+COPY --from=backend-build --chown=nodejs:nodejs /app/backend/node_modules ./backend/node_modules
+COPY --from=backend-build --chown=nodejs:nodejs /app/backend/package.json ./backend/
+COPY --from=backend-build --chown=nodejs:nodejs /app/backend/prisma ./backend/prisma
+
+# Копируем собранный frontend
+COPY --from=frontend-build --chown=nodejs:nodejs /app/frontend/dist ./frontend/dist
+
+# Копируем собранную admin панель
+COPY --from=admin-build --chown=nodejs:nodejs /app/admin/dist ./admin/dist
+
+# Копируем конфигурационные файлы
+COPY --from=base --chown=nodejs:nodejs /app/docker-compose.prod.yml ./
+COPY --from=base --chown=nodejs:nodejs /app/scripts ./scripts
+COPY --from=base --chown=nodejs:nodejs /app/nginx ./nginx
+
+# Делаем скрипты исполняемыми
+RUN chmod +x scripts/*.sh
+
+USER nodejs
+
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3001/health || exit 1
+
+CMD ["node", "backend/dist/index.js"] 
