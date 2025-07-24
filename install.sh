@@ -205,8 +205,6 @@ setup_environment() {
         log "Создание .env файла..."
         
         # Генерируем безопасные пароли
-        POSTGRES_PASSWORD=$(generate_safe_password)
-        REDIS_PASSWORD=$(generate_safe_password)
         JWT_SECRET=$(generate_safe_password)$(generate_safe_password)
         SESSION_SECRET=$(generate_safe_password)
         MINIO_PASSWORD=$(generate_safe_password)
@@ -220,18 +218,9 @@ TELEGRAM_BOT_TOKEN=YOUR_BOT_TOKEN_HERE
 TELEGRAM_WEBHOOK_URL=https://yourdomain.com/api/webhook
 
 # ==============================================
-# DATABASE НАСТРОЙКИ  
+# DATABASE НАСТРОЙКИ (SQLite)
 # ==============================================
-POSTGRES_DB=booksmood
-POSTGRES_USER=booksmood_user
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-DATABASE_URL=postgresql://booksmood_user:${POSTGRES_PASSWORD}@postgres:5432/booksmood
-
-# ==============================================
-# REDIS НАСТРОЙКИ
-# ==============================================
-REDIS_URL=redis://redis:6379
-REDIS_PASSWORD=${REDIS_PASSWORD}
+DATABASE_URL=file:./data/database.db
 
 # ==============================================
 # SECURITY НАСТРОЙКИ
@@ -239,6 +228,8 @@ REDIS_PASSWORD=${REDIS_PASSWORD}
 JWT_SECRET=${JWT_SECRET}
 JWT_EXPIRES_IN=7d
 SESSION_SECRET=${SESSION_SECRET}
+RATE_LIMIT_WINDOW=3600000
+RATE_LIMIT_MAX=100
 
 # ==============================================
 # API НАСТРОЙКИ
