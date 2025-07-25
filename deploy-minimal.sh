@@ -21,41 +21,24 @@ services:
       - "80:80"      # Nginx
       - "8000:8000"  # FastAPI (для прямого доступа)
     volumes:
-      # Постоянное хранение базы данных
-      - booksmood_data:/app/audioflow.db
-      # Постоянное хранение загруженных файлов
+      - booksmood_data:/app/data          # Директория для базы данных
       - booksmood_uploads:/app/app/static/uploads
-      # Логи
       - booksmood_logs:/var/log
     environment:
-      # Telegram Bot
       - BOT_TOKEN=8045700099:AAGCARHl1gc2sO5cCvoC3LlIHFC5hC04znY
       - TELEGRAM_BOT_USERNAME=booksmoodbot
-      
-      # Security
-      - SECRET_KEY=booksmood-production-secret-key-2024-CHANGE-THIS
+      - SECRET_KEY=booksmood-docker-secret-key-2024-change-in-production
       - ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=10080
-      
-      # Database
-      - DATABASE_URL=sqlite:///./audioflow.db
-      
-      # App Settings
+      - DATABASE_URL=sqlite:///./data/audioflow.db    # Обновленный путь к БД
       - DEBUG=false
       - APP_NAME=BooksMood
       - HOST=0.0.0.0
       - PORT=8000
-      
-      # File Storage
       - UPLOAD_DIR=./app/static/uploads
       - MAX_FILE_SIZE=104857600
-      
-      # CORS Origins
-      - CORS_ORIGINS=["https://web.telegram.org", "https://app.booksmood.ru", "http://213.171.25.85"]
-      
-      # Production
+      - CORS_ORIGINS=["https://web.telegram.org", "https://app.booksmood.ru", "http://localhost"]
       - PRODUCTION_URL=https://app.booksmood.ru
-      
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]

@@ -41,12 +41,14 @@ RUN /venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # Создаём необходимые директории
 RUN mkdir -p /app/app/static/uploads
+RUN mkdir -p /app/data                  # Папка для базы данных
 RUN mkdir -p /var/log
 RUN mkdir -p /var/www/html
 
 # Устанавливаем права
 RUN chmod +x /app/scripts/*.sh 2>/dev/null || true
 RUN chmod 755 /app/app/static/uploads
+RUN chmod 755 /app/data                 # Права для папки базы данных
 
 # Создаём конфигурацию Nginx
 RUN echo 'server {\n\
@@ -115,7 +117,7 @@ TELEGRAM_BOT_USERNAME=booksmoodbot\n\
 SECRET_KEY=booksmood-docker-secret-key-2024-change-in-production\n\
 ALGORITHM=HS256\n\
 ACCESS_TOKEN_EXPIRE_MINUTES=10080\n\
-DATABASE_URL=sqlite:///./audioflow.db\n\
+DATABASE_URL=sqlite:///./data/audioflow.db\n\
 DEBUG=False\n\
 APP_NAME=BooksMood\n\
 UPLOAD_DIR=./app/static/uploads\n\

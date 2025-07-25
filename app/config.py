@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 10080  # 7 days
     
     # Database
-    database_url: str = "sqlite:///./audioflow.db"
+    database_url: str = "sqlite:///./data/audioflow.db"
     
     # CORS
     cors_origins: List[str] = [

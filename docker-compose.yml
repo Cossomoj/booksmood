@@ -10,7 +10,7 @@ services:
       - "8000:8000"  # FastAPI (для прямого доступа)
     volumes:
       # Постоянное хранение базы данных
-      - booksmood_data:/app/audioflow.db
+      - booksmood_data:/app/data          # Директория для базы данных
       # Постоянное хранение загруженных файлов
       - booksmood_uploads:/app/app/static/uploads
       # Логи
@@ -26,7 +26,7 @@ services:
       - ACCESS_TOKEN_EXPIRE_MINUTES=10080
       
       # Database
-      - DATABASE_URL=sqlite:///./audioflow.db
+      - DATABASE_URL=sqlite:///./data/audioflow.db    # Обновленный путь к БД
       
       # App Settings
       - DEBUG=false
