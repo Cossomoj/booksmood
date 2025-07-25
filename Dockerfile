@@ -23,15 +23,10 @@ RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
 # Добавляем GitHub в known_hosts
 RUN ssh-keyscan -H github.com >> /root/.ssh/known_hosts
 
-# Клонируем репозиторий BooksMood
-# Используем HTTPS вместо SSH для простоты
-RUN git clone https://github.com/Cossomoj/booksmood.git /tmp/booksmood && \
-    cp -r /tmp/booksmood/* /app/ && \
-    cp -r /tmp/booksmood/.* /app/ 2>/dev/null || true && \
-    rm -rf /tmp/booksmood
-
-# Проверяем что файлы скопированы
-RUN ls -la /app/ && test -f /app/requirements.txt
+# Клонируем репозиторий BooksMood напрямую в /app
+RUN git clone https://github.com/Cossomoj/booksmood.git . && \
+    ls -la && \
+    test -f requirements.txt
 
 # Создаём виртуальное окружение
 RUN python3.13 -m venv /venv
@@ -43,7 +38,7 @@ ENV PYTHONPATH="/app"
 
 # Обновляем pip и устанавливаем зависимости
 RUN /venv/bin/pip install --upgrade pip
-RUN /venv/bin/pip install --no-cache-dir -r /app/requirements.txt
+RUN /venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # Создаём необходимые директории
 RUN mkdir -p /app/app/static/uploads
