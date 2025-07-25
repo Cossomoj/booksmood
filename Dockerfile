@@ -20,32 +20,30 @@ WORKDIR /app
 # Создаём .ssh директорию и устанавливаем права
 RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
 
-# Копируем SSH-ключи (если используется SSH клонирование)
-# COPY id_ed25519 /root/.ssh/id_rsa
-# COPY id_ed25519.pub /root/.ssh/id_rsa.pub
-# RUN chmod 600 /root/.ssh/id_rsa /root/.ssh/id_rsa.pub
-
 # Добавляем GitHub в known_hosts
 RUN ssh-keyscan -H github.com >> /root/.ssh/known_hosts
 
 # Клонируем репозиторий BooksMood
 # Используем HTTPS вместо SSH для простоты
-RUN git clone https://github.com/Cossomoj/booksmood.git /app
+RUN git clone https://github.com/Cossomoj/booksmood.git /tmp/booksmood && \
+    cp -r /tmp/booksmood/* /app/ && \
+    cp -r /tmp/booksmood/.* /app/ 2>/dev/null || true && \
+    rm -rf /tmp/booksmood
 
-# Альтернативно для SSH (раскомментируйте если нужен SSH):
-# RUN git clone git@github.com:Cossomoj/booksmood.git /app
+# Проверяем что файлы скопированы
+RUN ls -la /app/ && test -f /app/requirements.txt
 
 # Создаём виртуальное окружение
 RUN python3.13 -m venv /venv
-
-# Обновляем pip и устанавливаем зависимости
-RUN /venv/bin/pip install --upgrade pip
-RUN /venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # Устанавливаем переменные окружения
 ENV PATH="/venv/bin:$PATH"
 ENV VIRTUAL_ENV="/venv"
 ENV PYTHONPATH="/app"
+
+# Обновляем pip и устанавливаем зависимости
+RUN /venv/bin/pip install --upgrade pip
+RUN /venv/bin/pip install --no-cache-dir -r /app/requirements.txt
 
 # Создаём необходимые директории
 RUN mkdir -p /app/app/static/uploads
@@ -53,7 +51,7 @@ RUN mkdir -p /var/log
 RUN mkdir -p /var/www/html
 
 # Устанавливаем права
-RUN chmod +x /app/scripts/*.sh
+RUN chmod +x /app/scripts/*.sh 2>/dev/null || true
 RUN chmod 755 /app/app/static/uploads
 
 # Создаём конфигурацию Nginx
