@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     
     # Telegram
     bot_token: str = "8045700099:AAGCARHl1gc2sO5cCvoC3LlIHFC5hC04znY"
-    telegram_bot_username: str = "AudioFlowBot"
+    telegram_bot_username: str = "booksmoodbot"
     
     # Security
     secret_key: str = "audioflow-secret-key-2024-very-secure-min-32-chars"
@@ -19,7 +19,12 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./audioflow.db"
     
     # CORS
-    cors_origins: List[str] = ["https://web.telegram.org", "http://localhost:3000"]
+    cors_origins: List[str] = [
+        "https://web.telegram.org", 
+        "https://app.booksmood.ru", 
+        "http://localhost:3000",
+        "http://localhost:8000"
+    ]
     
     # Files
     upload_dir: str = "./app/static/uploads"

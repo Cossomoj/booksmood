@@ -118,7 +118,7 @@ async def root(request: Request):
             <div class="links">
                 <a href="/docs" class="link">📚 API Документация</a>
                 <a href="/admin/dashboard" class="link">⚙️ Админ панель</a>
-                <a href="https://t.me/AudioFlowBot" class="link">🤖 Открыть в Telegram</a>
+                <a href="https://t.me/booksmoodbot" class="link">🤖 Открыть в Telegram</a>
             </div>
         </div>
     </body>
