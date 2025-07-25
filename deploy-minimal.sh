@@ -10,8 +10,6 @@ echo "================================="
 
 # Создание docker-compose.yml на VPS
 cat > docker-compose.yml << 'EOF'
-version: '3.8'
-
 services:
   # BooksMood основное приложение
   booksmood:

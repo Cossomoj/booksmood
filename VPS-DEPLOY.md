@@ -36,8 +36,6 @@ cd /opt/booksmood
 ### 4. Создайте docker-compose.yml:
 ```bash
 cat > docker-compose.yml << 'EOF'
-version: '3.8'
-
 services:
   # BooksMood основное приложение
   booksmood:
