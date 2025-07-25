@@ -20,10 +20,12 @@ class Settings(BaseSettings):
     
     # CORS
     cors_origins: List[str] = [
-        "https://web.telegram.org", 
-        "https://app.booksmood.ru", 
+        "https://web.telegram.org",
+        "https://app.booksmood.ru",
+        "http://app.booksmood.ru",  # HTTP fallback
         "http://localhost:3000",
-        "http://localhost:8000"
+        "http://localhost:8000",
+        "http://localhost"
     ]
     
     # Files

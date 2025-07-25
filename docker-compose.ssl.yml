@@ -1,0 +1,64 @@
+services:
+  booksmood:
+    build:
+      context: https://github.com/Cossomoj/booksmood.git
+      dockerfile: Dockerfile.ssl
+    container_name: booksmood_ssl_app
+    ports:
+      - "80:80"      # HTTP (для получения SSL)
+      - "443:443"    # HTTPS
+      - "8000:8000"  # FastAPI (для отладки)
+    volumes:
+      - booksmood_data:/app/data
+      - booksmood_uploads:/app/app/static/uploads
+      - booksmood_logs:/var/log
+      - booksmood_ssl:/etc/letsencrypt    # SSL сертификаты
+    environment:
+      - BOT_TOKEN=8045700099:AAGCARHl1gc2sO5cCvoC3LlIHFC5hC04znY
+      - TELEGRAM_BOT_USERNAME=booksmoodbot
+      - SECRET_KEY=booksmood-ssl-secret-key-2024-CHANGE-IN-PRODUCTION
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=10080
+      - DATABASE_URL=sqlite:///./data/audioflow.db
+      - DEBUG=false
+      - APP_NAME=BooksMood
+      - HOST=0.0.0.0
+      - PORT=8000
+      - UPLOAD_DIR=./app/static/uploads
+      - MAX_FILE_SIZE=104857600
+      - CORS_ORIGINS=["https://web.telegram.org", "https://app.booksmood.ru", "http://localhost"]
+      - PRODUCTION_URL=https://app.booksmood.ru
+      - SSL_DOMAIN=app.booksmood.ru
+      - SSL_EMAIL=admin@booksmood.ru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # Больше времени для SSL setup
+    networks:
+      - booksmood_network
+    labels:
+      - "com.booksmood.service=api-ssl"
+      - "com.booksmood.version=1.0-ssl"
+      - "com.booksmood.domain=app.booksmood.ru"
+
+networks:
+  booksmood_network:
+    driver: bridge
+    name: booksmood_ssl_net
+
+volumes:
+  booksmood_data:
+    name: booksmood_ssl_database
+    driver: local
+  booksmood_uploads:
+    name: booksmood_ssl_files
+    driver: local
+  booksmood_logs:
+    name: booksmood_ssl_logs
+    driver: local
+  booksmood_ssl:
+    name: booksmood_ssl_certs
+    driver: local 
