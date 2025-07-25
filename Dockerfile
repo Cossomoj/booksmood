@@ -23,16 +23,9 @@ RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
 # Добавляем GitHub в known_hosts
 RUN ssh-keyscan -H github.com >> /root/.ssh/known_hosts
 
-# Клонируем репозиторий BooksMood напрямую в /app
-RUN git clone https://github.com/Cossomoj/booksmood.git .
-
-# Отладочная информация
-RUN echo "=== Содержимое /app после клонирования ===" && \
-    ls -la && \
-    echo "=== Проверка requirements.txt ===" && \
-    ls -la requirements.txt && \
-    echo "=== Содержимое requirements.txt ===" && \
-    head -5 requirements.txt
+# Клонируем репозиторий BooksMood из ветки main
+RUN git clone -b main https://github.com/Cossomoj/booksmood.git . && \
+    ls -la requirements.txt
 
 # Создаём виртуальное окружение
 RUN python3.13 -m venv /venv
