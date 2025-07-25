@@ -1,0 +1,71 @@
+# Git
+.git
+.gitignore
+*.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local development
+.env.local
+.env.development
+*.log
+
+# Database (будет создана в контейнере)
+audioflow.db
+*.sqlite
+*.sqlite3
+
+# Uploads (том для постоянного хранения)
+app/static/uploads/*
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+README.md
+PRODUCTION.md
+SSL-GUIDE.md
+QUICKSTART.md
+
+# Temporary files
+tmp/
+temp/
+*.tmp 
