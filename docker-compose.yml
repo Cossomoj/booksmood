@@ -10,10 +10,10 @@ services:
       - "8000:8000"  # FastAPI (для отладки)
       - "8088:8088"  # Админ панель
     volumes:
-      - booksmood_data:/app/data
-      - booksmood_uploads:/app/app/static/uploads
-      - booksmood_logs:/var/log
-      - /opt/ssl-certs:/host-ssl:ro    # SSL сертификаты с хоста (только чтение)
+      - /opt/booksmood-data:/app/data                    # База данных на хосте
+      - /opt/booksmood-uploads:/app/app/static/uploads   # Загруженные файлы на хосте  
+      - /opt/booksmood-logs:/var/log                     # Логи на хосте
+      - /opt/ssl-certs:/host-ssl:ro                      # SSL сертификаты с хоста (только чтение)
     environment:
       - BOT_TOKEN=8045700099:AAGCARHl1gc2sO5cCvoC3LlIHFC5hC04znY
       - TELEGRAM_BOT_USERNAME=booksmoodbot
@@ -50,13 +50,8 @@ networks:
     driver: bridge
     name: booksmood_net
 
-volumes:
-  booksmood_data:
-    name: booksmood_database
-    driver: local
-  booksmood_uploads:
-    name: booksmood_files
-    driver: local
-  booksmood_logs:
-    name: booksmood_logs
-    driver: local 
+# Volumes теперь монтируются напрямую с хоста VPS:
+# /opt/booksmood-data - база данных SQLite
+# /opt/booksmood-uploads - загруженные аудиофайлы и обложки  
+# /opt/booksmood-logs - логи приложения
+# /opt/ssl-certs - SSL сертификаты 
