@@ -542,6 +542,12 @@
         
         // Инициализация
         document.addEventListener('DOMContentLoaded', () => {
+            // Проверяем авторизацию
+            if (!localStorage.getItem('admin_token')) {
+                window.location.href = '/admin/login';
+                return;
+            }
+            
             loadDashboardData();
             loadCategories();
             initFileUploads();
@@ -580,6 +586,12 @@
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
                 });
                 
+                if (response.status === 401) {
+                    localStorage.removeItem('admin_token');
+                    window.location.href = '/admin/login';
+                    return;
+                }
+                
                 if (response.ok) {
                     const data = await response.json();
                     
@@ -612,7 +624,17 @@
         // Загрузка категорий
         async function loadCategories() {
             try {
-                const response = await fetch('/api/categories');
+                const response = await fetch('/api/admin/categories', {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+                });
+                
+                if (response.status === 401) {
+                    // Токен недействителен, перенаправляем на логин
+                    localStorage.removeItem('admin_token');
+                    window.location.href = '/admin/login';
+                    return;
+                }
+                
                 if (response.ok) {
                     categories = await response.json();
                     
@@ -620,9 +642,15 @@
                     const select = document.getElementById('categorySelect');
                     select.innerHTML = '<option value="">Выберите категорию</option>' +
                         categories.map(cat => `<option value="${cat.id}">${cat.emoji || ''} ${cat.name}</option>`).join('');
+                    
+                    console.log('Загружено категорий:', categories.length);
+                } else {
+                    console.error('Ошибка загрузки категорий:', response.status, response.statusText);
+                    showNotification('Ошибка загрузки категорий', 'error');
                 }
             } catch (error) {
                 console.error('Ошибка загрузки категорий:', error);
+                showNotification('Ошибка сети при загрузке категорий', 'error');
             }
         }
         

@@ -308,16 +308,4 @@ async def setup_demo_data(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/books", response_model=List[BookResponse])
-async def get_admin_books(
-    page: int = Query(1, ge=1),
-    limit: int = Query(50, le=100),
-    db: Session = Depends(get_db),
-    admin: Admin = Depends(get_current_admin)
-):
-    """Получение списка книг для админа"""
-    
-    offset = (page - 1) * limit
-    books = db.query(Book).offset(offset).limit(limit).all()
-    
-    return [BookResponse.model_validate(book) for book in books] 
+# Удаляем дублирующийся роутер - он уже есть выше 
