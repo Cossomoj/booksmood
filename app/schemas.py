@@ -177,8 +177,10 @@ class RatingBase(BaseModel):
     rating: int = Field(..., ge=1, le=5, description="Рейтинг от 1 до 5")
     comment: Optional[str] = None
 
-class RatingCreate(RatingBase):
-    pass
+class RatingCreate(BaseModel):
+    book_id: int
+    rating: int = Field(..., ge=1, le=5, description="Оценка от 1 до 5")
+    review: Optional[str] = Field(None, max_length=1000, description="Отзыв")
 
 class RatingUpdate(BaseModel):
     rating: Optional[int] = Field(None, ge=1, le=5)

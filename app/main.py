@@ -1125,6 +1125,160 @@ async def root(request: Request):
             justify-content: flex-end;
         }}
 
+        /* Мобильная оптимизация */
+        .mobile-device .book-card {{
+            transition: transform 0.2s ease;
+        }}
+
+        .mobile-device .book-card:active {{
+            transform: scale(0.95);
+        }}
+
+        .mobile-device .btn:active,
+        .mobile-device .icon-btn:active,
+        .mobile-device .player-btn:active {{
+            transform: scale(0.9);
+        }}
+
+        .mobile-device .category-chip:active {{
+            transform: scale(0.95) translateY(-2px);
+        }}
+
+        /* Индикатор перемотки */
+        .seek-indicator {{
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            z-index: 1000;
+            animation: seekPulse 0.3s ease;
+        }}
+
+        @keyframes seekPulse {{
+            0% {{
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.8);
+            }}
+            100% {{
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }}
+        }}
+
+        /* Улучшенные touch-области */
+        .mobile-device .progress-bar-container {{
+            padding: 12px 0;
+            margin: -12px 0;
+            cursor: pointer;
+        }}
+
+        .mobile-device .progress-bar {{
+            height: 6px;
+        }}
+
+        .mobile-device .progress-fill {{
+            height: 6px;
+        }}
+
+        .mobile-device .progress-bar::after {{
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }}
+
+        .mobile-device .progress-bar-container:active .progress-bar::after {{
+            opacity: 1;
+        }}
+
+        /* iOS специфичные стили */
+        .ios-device {{
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+        }}
+
+        .ios-device .audio-player {{
+            padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+        }}
+
+        .ios-device .bottom-nav {{
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }}
+
+        /* Улучшенные кнопки для touch */
+        .mobile-device .icon-btn,
+        .mobile-device .player-btn {{
+            min-width: 44px;
+            min-height: 44px;
+            padding: 12px;
+        }}
+
+        .mobile-device .nav-item {{
+            min-height: 60px;
+            padding: 8px 4px;
+        }}
+
+        .mobile-device .book-actions button {{
+            min-width: 32px;
+            min-height: 32px;
+        }}
+
+        /* Swipe hints */
+        .swipe-hint {{
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            opacity: 0;
+            animation: hintFadeIn 0.3s ease forwards;
+            z-index: 1001;
+        }}
+
+        @keyframes hintFadeIn {{
+            to {{
+                opacity: 1;
+            }}
+        }}
+
+        /* Улучшенная типографика для мобильных */
+        .mobile-device .book-title {{
+            font-size: 13px;
+            line-height: 1.3;
+        }}
+
+        .mobile-device .book-author {{
+            font-size: 11px;
+        }}
+
+        .mobile-device .section-title {{
+            font-size: 18px;
+        }}
+
+        .mobile-device .featured-title {{
+            font-size: 16px;
+        }}
+
         /* Остальные стили... */
     </style>
 </head>

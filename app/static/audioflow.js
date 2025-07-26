@@ -15,21 +15,17 @@ class AudioFlowApp {
     async init() {
         console.log('Initializing AudioFlow...');
         
-        // Инициализация Telegram WebApp
-        if (window.Telegram?.WebApp) {
-            window.Telegram.WebApp.ready();
-            window.Telegram.WebApp.expand();
-        }
-
-        // Авторизация пользователя
+        // Инициализация мобильных функций
+        this.initMobile();
+        
+        // Инициализация пользователя
         await this.authenticateUser();
         
         // Загрузка данных
         await this.loadCategories();
         await this.loadBooks();
         
-        // Инициализация компонентов
-        this.initAudioPlayer();
+        // Инициализация UI
         this.initEventListeners();
         
         console.log('AudioFlow initialized successfully');
@@ -1402,6 +1398,290 @@ class AudioFlowApp {
                 <span>${rating.rating}</span>
             `;
             btn.title = `Ваша оценка: ${rating.rating}/5`;
+        });
+    }
+
+    // Мобильная оптимизация и touch-жесты
+    initMobileGestures() {
+        this.touchStartX = 0;
+        this.touchStartY = 0;
+        this.touchEndX = 0;
+        this.touchEndY = 0;
+        this.isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        
+        if (this.isTouchDevice) {
+            console.log('Touch device detected, enabling mobile gestures');
+            this.addGlobalTouchListeners();
+        }
+    }
+
+    addGlobalTouchListeners() {
+        // Swipe gestures для основного контейнера
+        const appContainer = document.querySelector('.app-container');
+        if (appContainer) {
+            appContainer.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: true });
+            appContainer.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+            appContainer.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: true });
+        }
+
+        // Специальные жесты для аудиоплеера
+        document.addEventListener('DOMContentLoaded', () => {
+            this.addPlayerGestures();
+        });
+    }
+
+    addPlayerGestures() {
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'childList') {
+                    const audioPlayer = document.querySelector('.audio-player');
+                    if (audioPlayer && !audioPlayer.dataset.gesturesAdded) {
+                        this.initPlayerGestures(audioPlayer);
+                        audioPlayer.dataset.gesturesAdded = 'true';
+                    }
+                }
+            });
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    initPlayerGestures(player) {
+        // Добавляем touch-жесты для плеера
+        player.addEventListener('touchstart', this.handlePlayerTouchStart.bind(this), { passive: true });
+        player.addEventListener('touchmove', this.handlePlayerTouchMove.bind(this), { passive: false });
+        player.addEventListener('touchend', this.handlePlayerTouchEnd.bind(this), { passive: true });
+
+        // Жесты для прогресс-бара
+        const progressContainer = player.querySelector('.progress-bar-container');
+        if (progressContainer) {
+            progressContainer.addEventListener('touchstart', this.handleProgressTouchStart.bind(this), { passive: true });
+            progressContainer.addEventListener('touchmove', this.handleProgressTouchMove.bind(this), { passive: false });
+            progressContainer.addEventListener('touchend', this.handleProgressTouchEnd.bind(this), { passive: true });
+        }
+    }
+
+    handleTouchStart(e) {
+        this.touchStartX = e.touches[0].clientX;
+        this.touchStartY = e.touches[0].clientY;
+        this.touchStartTime = Date.now();
+    }
+
+    handleTouchMove(e) {
+        if (!this.touchStartX || !this.touchStartY) return;
+        
+        this.touchEndX = e.touches[0].clientX;
+        this.touchEndY = e.touches[0].clientY;
+        
+        const deltaX = Math.abs(this.touchEndX - this.touchStartX);
+        const deltaY = Math.abs(this.touchEndY - this.touchStartY);
+        
+        // Предотвращаем скролл при горизонтальных свайпах
+        if (deltaX > deltaY && deltaX > 30) {
+            e.preventDefault();
+        }
+    }
+
+    handleTouchEnd(e) {
+        if (!this.touchStartX || !this.touchStartY) return;
+
+        const deltaX = this.touchEndX - this.touchStartX;
+        const deltaY = this.touchEndY - this.touchStartY;
+        const deltaTime = Date.now() - this.touchStartTime;
+        
+        const minSwipeDistance = 50;
+        const maxSwipeTime = 300;
+        
+        if (Math.abs(deltaX) > minSwipeDistance && deltaTime < maxSwipeTime) {
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                // Горизонтальный свайп
+                if (deltaX > 0) {
+                    this.handleSwipeRight();
+                } else {
+                    this.handleSwipeLeft();
+                }
+            }
+        }
+        
+        // Сброс координат
+        this.touchStartX = 0;
+        this.touchStartY = 0;
+        this.touchEndX = 0;
+        this.touchEndY = 0;
+    }
+
+    handlePlayerTouchStart(e) {
+        this.playerTouchStartX = e.touches[0].clientX;
+        this.playerTouchStartY = e.touches[0].clientY;
+        this.playerTouchStartTime = Date.now();
+    }
+
+    handlePlayerTouchMove(e) {
+        if (!this.playerTouchStartX) return;
+        
+        const deltaX = e.touches[0].clientX - this.playerTouchStartX;
+        const deltaY = e.touches[0].clientY - this.playerTouchStartY;
+        
+        // Горизонтальные свайпы в плеере для перемотки
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 20) {
+            e.preventDefault();
+            this.showSeekIndicator(deltaX > 0 ? 'forward' : 'backward');
+        }
+    }
+
+    handlePlayerTouchEnd(e) {
+        if (!this.playerTouchStartX) return;
+
+        const deltaX = e.changedTouches[0].clientX - this.playerTouchStartX;
+        const deltaTime = Date.now() - this.playerTouchStartTime;
+        
+        if (Math.abs(deltaX) > 50 && deltaTime < 300) {
+            if (deltaX > 0) {
+                this.skipTime(15); // Свайп вправо - перемотка вперед
+            } else {
+                this.skipTime(-15); // Свайп влево - перемотка назад
+            }
+        }
+        
+        this.hideSeekIndicator();
+        this.playerTouchStartX = 0;
+        this.playerTouchStartY = 0;
+    }
+
+    handleProgressTouchStart(e) {
+        this.progressTouching = true;
+        this.updateProgressFromTouch(e);
+    }
+
+    handleProgressTouchMove(e) {
+        if (this.progressTouching) {
+            e.preventDefault();
+            this.updateProgressFromTouch(e);
+        }
+    }
+
+    handleProgressTouchEnd(e) {
+        if (this.progressTouching) {
+            this.updateProgressFromTouch(e);
+            this.progressTouching = false;
+        }
+    }
+
+    updateProgressFromTouch(e) {
+        const progressContainer = e.currentTarget;
+        const rect = progressContainer.getBoundingClientRect();
+        const touch = e.touches ? e.touches[0] : e.changedTouches[0];
+        const x = touch.clientX - rect.left;
+        const percentage = Math.max(0, Math.min(1, x / rect.width));
+        
+        if (this.audioPlayer && this.currentBook) {
+            const newTime = percentage * this.audioPlayer.duration;
+            this.audioPlayer.currentTime = newTime;
+            this.updateProgressBar();
+        }
+    }
+
+    handleSwipeLeft() {
+        console.log('Swipe left detected');
+        // В зависимости от контекста - можно открыть меню, переключить секцию
+        if (this.currentBook) {
+            this.skipTime(30); // Перемотка вперед
+            this.showNotification('⏭️ +30 сек', 'info');
+        }
+    }
+
+    handleSwipeRight() {
+        console.log('Swipe right detected');
+        if (this.currentBook) {
+            this.skipTime(-30); // Перемотка назад
+            this.showNotification('⏮️ -30 сек', 'info');
+        }
+    }
+
+    showSeekIndicator(direction) {
+        // Удаляем предыдущий индикатор
+        const existingIndicator = document.querySelector('.seek-indicator');
+        if (existingIndicator) {
+            existingIndicator.remove();
+        }
+
+        const indicator = document.createElement('div');
+        indicator.className = 'seek-indicator';
+        indicator.innerHTML = direction === 'forward' 
+            ? '<span>⏭️</span><span>+15с</span>' 
+            : '<span>⏮️</span><span>-15с</span>';
+        
+        const player = document.querySelector('.audio-player');
+        if (player) {
+            player.appendChild(indicator);
+        }
+    }
+
+    hideSeekIndicator() {
+        const indicator = document.querySelector('.seek-indicator');
+        if (indicator) {
+            indicator.remove();
+        }
+    }
+
+    // Улучшенные функции для мобильных устройств
+    enableMobileOptimizations() {
+        // Добавляем meta теги для мобильных устройств
+        if (!document.querySelector('meta[name="theme-color"]')) {
+            const metaTheme = document.createElement('meta');
+            metaTheme.name = 'theme-color';
+            metaTheme.content = '#6366f1';
+            document.head.appendChild(metaTheme);
+        }
+
+        // Предотвращаем зум при двойном тапе на кнопках
+        this.preventDoubleTapZoom();
+        
+        // Улучшаем скролл
+        this.improveScrolling();
+    }
+
+    preventDoubleTapZoom() {
+        document.addEventListener('touchend', (e) => {
+            if (e.target.closest('button, .book-card, .category-chip')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    }
+
+    improveScrolling() {
+        // Добавляем momentum scrolling для iOS
+        document.body.style.webkitOverflowScrolling = 'touch';
+        
+        // Улучшаем performance скролла
+        const scrollContainers = document.querySelectorAll('.books-scroll, .categories');
+        scrollContainers.forEach(container => {
+            container.style.webkitOverflowScrolling = 'touch';
+            container.style.overflowScrolling = 'touch';
+        });
+    }
+
+    // Инициализация мобильных функций
+    initMobile() {
+        this.initMobileGestures();
+        this.enableMobileOptimizations();
+        
+        // Определение типа устройства
+        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        this.isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        
+        if (this.isMobile) {
+            document.body.classList.add('mobile-device');
+        }
+        
+        if (this.isIOS) {
+            document.body.classList.add('ios-device');
+        }
+        
+        console.log('Mobile optimizations initialized', {
+            isMobile: this.isMobile,
+            isIOS: this.isIOS,
+            isTouchDevice: this.isTouchDevice
         });
     }
 }
