@@ -8,7 +8,7 @@ import os
 from .config import settings
 from .database import engine
 from .models import Base
-from .routers import auth, books, categories, users, admin
+from .routers import auth, books, categories, users, admin, upload
 from .utils import ensure_directory_exists
 
 # Создание таблиц БД
@@ -38,6 +38,7 @@ app.add_middleware(
 
 # Подключение статических файлов
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
 # Подключение роутеров
 app.include_router(auth.router)
@@ -45,6 +46,7 @@ app.include_router(books.router)
 app.include_router(categories.router)
 app.include_router(users.router)
 app.include_router(admin.router)
+app.include_router(upload.router)
 
 # Jinja2 шаблоны для админ панели
 templates = Jinja2Templates(directory="app/admin/templates")
@@ -516,6 +518,203 @@ async def root(request: Request):
             background: var(--primary);
             color: white;
         }
+
+        /* Аудиоплеер */
+        .audio-player {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(26, 26, 26, 0.95);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border);
+            padding: 16px;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .audio-player.show {
+            transform: translateY(0);
+        }
+
+        .player-content {
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        .player-book-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .player-cover {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            background: var(--card-bg);
+            background-size: cover;
+            background-position: center;
+            flex-shrink: 0;
+        }
+
+        .player-text {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .player-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .player-author {
+            font-size: 12px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .player-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 16px;
+        }
+
+        .player-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+            font-size: 12px;
+        }
+
+        .player-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .player-play-btn {
+            background: var(--primary);
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .player-play-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .player-progress {
+            margin-bottom: 8px;
+        }
+
+        .player-time {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .progress-bar-container {
+            cursor: pointer;
+            padding: 4px 0;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            border-radius: 2px;
+            transition: width 0.1s linear;
+        }
+
+        /* Кнопка воспроизведения в карточке книги */
+        .featured-play-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+            font-size: 14px;
+        }
+
+        .featured-play-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+        }
+
+        /* Уведомления об ошибках */
+        .error-notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--accent);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 9999;
+            animation: slideInDown 0.3s ease;
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+
+        /* Обновляем карточки книг для кликабельности */
+        .book-card {
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .book-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .book-card:active {
+            transform: translateY(-2px);
+        }
     </style>
 </head>
 <body>
@@ -906,9 +1105,10 @@ async def admin_login_page(request: Request):
                 
                 <div class="error" id="error"></div>
             </form>
-        </div>
-        
-        <script>
+            </div>
+
+    <script src="/static/audioflow.js"></script>
+    <script>
             document.getElementById('loginForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 

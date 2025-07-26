@@ -66,6 +66,39 @@
             padding: 20px;
         }
         
+        .page-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            background: white;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .tab-btn {
+            padding: 12px 24px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .tab-btn.active {
+            background: #6366f1;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -102,123 +135,253 @@
             margin-bottom: 20px;
         }
         
-        .section h2 {
-            margin-bottom: 20px;
-            color: #333;
+        .section-title {
             font-size: 20px;
             font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
         }
         
-        .actions {
+        /* Форма добавления книги */
+        .book-form {
+            display: grid;
+            gap: 20px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .form-group {
             display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .form-label {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .form-input,
+        .form-select,
+        .form-textarea {
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: #6366f1;
+        }
+        
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .file-upload {
+            border: 2px dashed #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .file-upload:hover {
+            border-color: #6366f1;
+            background: #f8faff;
+        }
+        
+        .file-upload.dragover {
+            border-color: #6366f1;
+            background: #f0f4ff;
+        }
+        
+        .file-upload input {
+            display: none;
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            color: #9ca3af;
+            margin-bottom: 10px;
+        }
+        
+        .upload-text {
+            color: #6b7280;
+            font-size: 14px;
+        }
+        
+        .file-preview {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f3f4f6;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #374151;
         }
         
         .btn {
-            background: #6366f1;
-            color: white;
             padding: 12px 24px;
             border: none;
             border-radius: 8px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
             font-weight: 500;
-            transition: all 0.3s ease;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
         }
         
-        .btn:hover {
+        .btn-primary {
+            background: #6366f1;
+            color: white;
+        }
+        
+        .btn-primary:hover {
             background: #4f46e5;
-            transform: translateY(-1px);
         }
         
         .btn-secondary {
-            background: #64748b;
+            background: #e5e7eb;
+            color: #374151;
         }
         
         .btn-secondary:hover {
-            background: #475569;
+            background: #d1d5db;
         }
         
-        .book-list {
-            display: grid;
-            gap: 12px;
+        .btn-danger {
+            background: #ef4444;
+            color: white;
         }
         
-        .book-item {
-            display: flex;
-            gap: 16px;
-            padding: 16px;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            transition: all 0.3s ease;
+        .btn-danger:hover {
+            background: #dc2626;
         }
         
-        .book-item:hover {
-            border-color: #6366f1;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+        /* Таблица книг */
+        .books-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .books-table th,
+        .books-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .books-table th {
+            background: #f9fafb;
+            font-weight: 600;
+            color: #374151;
         }
         
         .book-cover {
-            width: 60px;
-            height: 80px;
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            border-radius: 6px;
+            width: 48px;
+            height: 48px;
+            border-radius: 4px;
+            background: #e5e7eb;
+            background-size: cover;
+            background-position: center;
+        }
+        
+        .book-actions {
             display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 24px;
+            gap: 8px;
         }
         
-        .book-info {
-            flex: 1;
-        }
-        
-        .book-title {
-            font-weight: 600;
-            margin-bottom: 4px;
-            color: #111827;
-        }
-        
-        .book-author {
-            color: #6b7280;
-            font-size: 14px;
-            margin-bottom: 8px;
-        }
-        
-        .book-meta {
-            display: flex;
-            gap: 16px;
+        .book-status {
+            padding: 4px 8px;
+            border-radius: 4px;
             font-size: 12px;
-            color: #9ca3af;
+            font-weight: 500;
+        }
+        
+        .status-active {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .status-inactive {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        /* Уведомления */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .notification.success {
+            background: #10b981;
+        }
+        
+        .notification.error {
+            background: #ef4444;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
         }
         
         .loading {
-            text-align: center;
-            padding: 40px;
-            color: #6b7280;
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
         }
         
-        .error {
-            background: #fee2e2;
-            color: #dc2626;
-            padding: 16px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
         }
         
-        .fade-in {
-            animation: fadeIn 0.5s ease-out;
+        .progress-fill {
+            height: 100%;
+            background: #6366f1;
+            transition: width 0.3s ease;
         }
     </style>
 </head>
@@ -226,30 +389,27 @@
     <header class="admin-header">
         <div class="header-content">
             <div class="logo">
-                <span>🎧</span>
-                <span>AudioFlow Admin</span>
+                🎧 AudioFlow Admin
             </div>
             <nav class="admin-nav">
-                <a href="/admin/dashboard">Dashboard</a>
-                <a href="#" onclick="showBooks()">Книги</a>
-                <a href="#" onclick="showCategories()">Категории</a>
-                <a href="#" onclick="showUsers()">Пользователи</a>
-                <a href="/" onclick="logout()">Выход</a>
+                <a href="https://app.booksmood.ru" target="_blank">🌐 Открыть сайт</a>
+                <a href="#" onclick="logout()">🚪 Выход</a>
             </nav>
         </div>
     </header>
-    
+
     <div class="container">
-        <div id="loading" class="loading">
-            <p>Загрузка данных...</p>
+        <!-- Навигация по разделам -->
+        <div class="page-tabs">
+            <button class="tab-btn active" onclick="showTab('dashboard')">📊 Дашборд</button>
+            <button class="tab-btn" onclick="showTab('add-book')">➕ Добавить книгу</button>
+            <button class="tab-btn" onclick="showTab('books')">📚 Управление книгами</button>
+            <button class="tab-btn" onclick="showTab('categories')">🏷️ Категории</button>
         </div>
-        
-        <div id="error" class="error" style="display: none;">
-            <p>Ошибка загрузки данных. Проверьте подключение к серверу.</p>
-        </div>
-        
-        <div id="dashboard" style="display: none;">
-            <div class="stats-grid fade-in">
+
+        <!-- Дашборд -->
+        <div id="dashboard" class="tab-content active">
+            <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-value" id="totalUsers">0</div>
                     <div class="stat-label">Всего пользователей</div>
@@ -260,138 +420,393 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" id="totalPlays">0</div>
-                    <div class="stat-label">Прослушиваний</div>
+                    <div class="stat-label">Всего прослушиваний</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" id="newUsersToday">0</div>
                     <div class="stat-label">Новых пользователей сегодня</div>
                 </div>
             </div>
-            
-            <div class="section fade-in">
-                <h2>Быстрые действия</h2>
-                <div class="actions">
-                    <button class="btn" onclick="showAddBookModal()">
-                        📚 Добавить книгу
-                    </button>
-                    <button class="btn btn-secondary" onclick="showAddCategoryModal()">
-                        🏷️ Добавить категорию
-                    </button>
-                    <a href="/docs" class="btn btn-secondary">
-                        📖 API Документация
-                    </a>
-                </div>
+
+            <div class="section">
+                <h2 class="section-title">Последние добавленные книги</h2>
+                <div id="recentBooks">Загрузка...</div>
             </div>
-            
-            <div class="section fade-in">
-                <h2>Последние добавленные книги</h2>
-                <div class="book-list" id="recentBooks">
-                    <!-- Книги будут загружены динамически -->
-                </div>
+        </div>
+
+        <!-- Добавление книги -->
+        <div id="add-book" class="tab-content">
+            <div class="section">
+                <h2 class="section-title">Добавить новую книгу</h2>
+                <form class="book-form" id="addBookForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Название книги *</label>
+                            <input type="text" class="form-input" name="title" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Автор *</label>
+                            <input type="text" class="form-input" name="author" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Категория</label>
+                            <select class="form-select" name="category_id" id="categorySelect">
+                                <option value="">Выберите категорию</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Тип доступа</label>
+                            <select class="form-select" name="is_free">
+                                <option value="true">Бесплатная</option>
+                                <option value="false">Премиум</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group full-width">
+                        <label class="form-label">Описание</label>
+                        <textarea class="form-textarea" name="description" placeholder="Краткое описание книги..."></textarea>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Аудиофайл *</label>
+                            <div class="file-upload" onclick="document.getElementById('audioFile').click()">
+                                <input type="file" id="audioFile" name="audio_file" accept=".mp3,.m4a,.wav,.ogg,.aac,.flac" required>
+                                <div class="upload-icon">🎵</div>
+                                <div class="upload-text">
+                                    Нажмите для выбора аудиофайла<br>
+                                    <small>Поддерживаемые форматы: MP3, M4A, WAV, OGG, AAC, FLAC (до 500MB)</small>
+                                </div>
+                                <div id="audioPreview" class="file-preview" style="display: none;"></div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Обложка</label>
+                            <div class="file-upload" onclick="document.getElementById('coverFile').click()">
+                                <input type="file" id="coverFile" name="cover_file" accept=".jpg,.jpeg,.png,.webp">
+                                <div class="upload-icon">🖼️</div>
+                                <div class="upload-text">
+                                    Нажмите для выбора обложки<br>
+                                    <small>Форматы: JPG, PNG, WebP (до 10MB)</small>
+                                </div>
+                                <div id="coverPreview" class="file-preview" style="display: none;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="uploadProgress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div style="text-align: center; margin-top: 10px; font-size: 14px; color: #666;">
+                            Загрузка... <span id="progressText">0%</span>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="resetForm()">Очистить</button>
+                        <button type="submit" class="btn btn-primary" id="submitBtn">
+                            📚 Добавить книгу
+                        </button>
+                    </div>
+                </form>
             </div>
-            
-            <div class="section fade-in">
-                <h2>Популярные книги</h2>
-                <div class="book-list" id="popularBooks">
-                    <!-- Книги будут загружены динамически -->
-                </div>
+        </div>
+
+        <!-- Управление книгами -->
+        <div id="books" class="tab-content">
+            <div class="section">
+                <h2 class="section-title">Управление книгами</h2>
+                <div id="booksTable">Загрузка...</div>
+            </div>
+        </div>
+
+        <!-- Категории -->
+        <div id="categories" class="tab-content">
+            <div class="section">
+                <h2 class="section-title">Управление категориями</h2>
+                <div id="categoriesTable">Загрузка...</div>
             </div>
         </div>
     </div>
 
     <script>
-        // Проверка авторизации
-        const token = localStorage.getItem('admin_token');
-        if (!token) {
-            window.location.href = '/admin/login';
+        // Состояние приложения
+        let currentTab = 'dashboard';
+        let books = [];
+        let categories = [];
+        
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDashboardData();
+            loadCategories();
+            initFileUploads();
+        });
+        
+        // Навигация по вкладкам
+        function showTab(tab) {
+            // Скрываем все вкладки
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Убираем активный класс с кнопок
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Показываем нужную вкладку
+            document.getElementById(tab).classList.add('active');
+            event.target.classList.add('active');
+            
+            currentTab = tab;
+            
+            // Загружаем данные для вкладки
+            if (tab === 'books') {
+                loadBooks();
+            } else if (tab === 'categories') {
+                loadCategoriesTable();
+            }
         }
-
+        
         // Загрузка данных дашборда
-        async function loadDashboard() {
+        async function loadDashboardData() {
             try {
                 const response = await fetch('/api/admin/dashboard', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    document.getElementById('totalUsers').textContent = data.stats.total_users;
+                    document.getElementById('totalBooks').textContent = data.stats.total_books;
+                    document.getElementById('totalPlays').textContent = data.stats.total_plays;
+                    document.getElementById('newUsersToday').textContent = data.stats.new_users_today;
+                    
+                    // Показываем последние книги
+                    const recentBooksHtml = data.recent_books.map(book => `
+                        <div style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px;">
+                            <div style="width: 48px; height: 48px; background: url('${book.cover_url || ''}') center/cover; border-radius: 4px; background-color: #f3f4f6;"></div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">${book.title}</div>
+                                <div style="font-size: 14px; color: #666;">${book.author}</div>
+                            </div>
+                            <div style="font-size: 12px; color: #666;">
+                                ${book.plays_count} прослушиваний
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    document.getElementById('recentBooks').innerHTML = recentBooksHtml || 'Нет книг';
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки дашборда:', error);
+            }
+        }
+        
+        // Загрузка категорий
+        async function loadCategories() {
+            try {
+                const response = await fetch('/api/categories');
+                if (response.ok) {
+                    categories = await response.json();
+                    
+                    // Заполняем селект категорий
+                    const select = document.getElementById('categorySelect');
+                    select.innerHTML = '<option value="">Выберите категорию</option>' +
+                        categories.map(cat => `<option value="${cat.id}">${cat.emoji || ''} ${cat.name}</option>`).join('');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки категорий:', error);
+            }
+        }
+        
+        // Инициализация загрузки файлов
+        function initFileUploads() {
+            const audioFile = document.getElementById('audioFile');
+            const coverFile = document.getElementById('coverFile');
+            
+            audioFile.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    document.getElementById('audioPreview').style.display = 'block';
+                    document.getElementById('audioPreview').textContent = `Выбрано: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`;
+                }
+            });
+            
+            coverFile.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    document.getElementById('coverPreview').style.display = 'block';
+                    document.getElementById('coverPreview').textContent = `Выбрано: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`;
+                }
+            });
+        }
+        
+        // Отправка формы добавления книги
+        document.getElementById('addBookForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const submitBtn = document.getElementById('submitBtn');
+            const progressDiv = document.getElementById('uploadProgress');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            
+            // Показываем прогресс
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<div class="loading"></div> Загрузка...';
+            progressDiv.style.display = 'block';
+            
+            try {
+                // Создаем XMLHttpRequest для отслеживания прогресса
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        progressFill.style.width = percent + '%';
+                        progressText.textContent = percent + '%';
                     }
                 });
-
-                if (!response.ok) {
-                    throw new Error('Failed to load dashboard');
-                }
-
-                const data = await response.json();
                 
-                // Обновление статистики
-                document.getElementById('totalUsers').textContent = data.stats.total_users;
-                document.getElementById('totalBooks').textContent = data.stats.total_books;
-                document.getElementById('totalPlays').textContent = data.stats.total_plays;
-                document.getElementById('newUsersToday').textContent = data.stats.new_users_today;
+                xhr.addEventListener('load', () => {
+                    if (xhr.status === 200) {
+                        const result = JSON.parse(xhr.responseText);
+                        showNotification('Книга успешно добавлена!', 'success');
+                        resetForm();
+                        loadDashboardData();
+                    } else {
+                        const error = JSON.parse(xhr.responseText);
+                        showNotification(error.detail || 'Ошибка добавления книги', 'error');
+                    }
+                    
+                    // Сбрасываем состояние
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '📚 Добавить книгу';
+                    progressDiv.style.display = 'none';
+                });
                 
-                // Отображение последних книг
-                renderBooks(data.recent_books, 'recentBooks');
-                renderBooks(data.popular_books, 'popularBooks');
+                xhr.addEventListener('error', () => {
+                    showNotification('Ошибка сети', 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '📚 Добавить книгу';
+                    progressDiv.style.display = 'none';
+                });
                 
-                // Показать дашборд
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('dashboard').style.display = 'block';
+                xhr.open('POST', '/api/admin/upload/book');
+                xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('admin_token')}`);
+                xhr.send(formData);
                 
             } catch (error) {
-                console.error('Error loading dashboard:', error);
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').style.display = 'block';
+                console.error('Ошибка:', error);
+                showNotification('Ошибка добавления книги', 'error');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '📚 Добавить книгу';
+                progressDiv.style.display = 'none';
+            }
+        });
+        
+        // Сброс формы
+        function resetForm() {
+            document.getElementById('addBookForm').reset();
+            document.getElementById('audioPreview').style.display = 'none';
+            document.getElementById('coverPreview').style.display = 'none';
+        }
+        
+        // Загрузка списка книг
+        async function loadBooks() {
+            try {
+                const response = await fetch('/api/admin/books', {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+                });
+                
+                if (response.ok) {
+                    books = await response.json();
+                    renderBooksTable();
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки книг:', error);
             }
         }
-
-        function renderBooks(books, containerId) {
-            const container = document.getElementById(containerId);
-            if (!books || books.length === 0) {
-                container.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">Нет данных</p>';
-                return;
-            }
-
-            container.innerHTML = books.map(book => `
-                <div class="book-item">
-                    <div class="book-cover">📚</div>
-                    <div class="book-info">
-                        <div class="book-title">${book.title}</div>
-                        <div class="book-author">${book.author}</div>
-                        <div class="book-meta">
-                            <span>⭐ ${book.rating}</span>
-                            <span>👥 ${book.plays_count} прослушиваний</span>
-                            <span>${book.is_free ? '🆓 Бесплатно' : '💎 Premium'}</span>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
+        
+        // Рендер таблицы книг
+        function renderBooksTable() {
+            const html = `
+                <table class="books-table">
+                    <thead>
+                        <tr>
+                            <th>Обложка</th>
+                            <th>Название</th>
+                            <th>Автор</th>
+                            <th>Категория</th>
+                            <th>Статус</th>
+                            <th>Прослушивания</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${books.map(book => `
+                            <tr>
+                                <td><div class="book-cover" style="background-image: url('${book.cover_url || ''}')"></div></td>
+                                <td>${book.title}</td>
+                                <td>${book.author}</td>
+                                <td>${book.category?.name || 'Без категории'}</td>
+                                <td><span class="book-status ${book.is_active ? 'status-active' : 'status-inactive'}">${book.is_active ? 'Активна' : 'Неактивна'}</span></td>
+                                <td>${book.plays_count}</td>
+                                <td>
+                                    <div class="book-actions">
+                                        <button class="btn btn-secondary" onclick="editBook(${book.id})">Редактировать</button>
+                                        <button class="btn btn-danger" onclick="deleteBook(${book.id})">Удалить</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            document.getElementById('booksTable').innerHTML = html;
         }
-
-        function showAddBookModal() {
-            alert('Функция добавления книги будет реализована в следующей версии');
+        
+        // Показ уведомлений
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
         }
-
-        function showAddCategoryModal() {
-            alert('Функция добавления категории будет реализована в следующей версии');
-        }
-
-        function showBooks() {
-            alert('Управление книгами будет реализовано в следующей версии');
-        }
-
-        function showCategories() {
-            alert('Управление категориями будет реализовано в следующей версии');
-        }
-
-        function showUsers() {
-            alert('Управление пользователями будет реализовано в следующей версии');
-        }
-
+        
+        // Выход из админки
         function logout() {
             localStorage.removeItem('admin_token');
             window.location.href = '/admin/login';
         }
-
-        // Загрузка при открытии страницы
-        loadDashboard();
+        
+        // Функции-заглушки для кнопок
+        function editBook(id) {
+            showNotification('Функция редактирования в разработке', 'error');
+        }
+        
+        function deleteBook(id) {
+            if (confirm('Удалить книгу?')) {
+                showNotification('Функция удаления в разработке', 'error');
+            }
+        }
+        
+        function loadCategoriesTable() {
+            document.getElementById('categoriesTable').innerHTML = 'Раздел категорий в разработке';
+        }
     </script>
 </body>
 </html> 

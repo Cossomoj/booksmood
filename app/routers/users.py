@@ -192,4 +192,149 @@ async def remove_from_favorites(
     db.delete(favorite)
     db.commit()
     
-    return FavoriteResponse(status="removed", book_id=book_id) 
+    return FavoriteResponse(status="removed", book_id=book_id)
+
+@router.post("/history/{book_id}", response_model=StatusResponse)
+async def update_listening_progress(
+    book_id: int,
+    progress: HistoryUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Обновление прогресса прослушивания"""
+    
+    # Проверяем существование книги
+    book = db.query(Book).filter(
+        Book.id == book_id,
+        Book.is_active == True
+    ).first()
+    
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    # Ищем существующую запись в истории
+    history = db.query(ListeningHistory).filter(
+        ListeningHistory.user_id == current_user.id,
+        ListeningHistory.book_id == book_id
+    ).first()
+    
+    if history:
+        # Обновляем существующую запись
+        history.current_position = progress.position
+        history.total_duration = progress.duration
+        history.last_played = datetime.utcnow()
+        history.play_count += 1
+        
+        # Определяем, закончена ли книга (если прослушано более 95%)
+        if progress.duration > 0:
+            progress_percent = (progress.position / progress.duration) * 100
+            history.is_finished = progress_percent >= 95.0
+    else:
+        # Создаем новую запись
+        history = ListeningHistory(
+            user_id=current_user.id,
+            book_id=book_id,
+            current_position=progress.position,
+            total_duration=progress.duration,
+            is_finished=False,
+            play_count=1
+        )
+        db.add(history)
+    
+    # Обновляем счетчик воспроизведений книги
+    book.plays_count += 1
+    
+    db.commit()
+    
+    return StatusResponse(
+        status="success", 
+        message=f"Progress updated: {progress.position}s / {progress.duration}s"
+    )
+
+@router.get("/history/{book_id}", response_model=dict)
+async def get_listening_progress(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Получение прогресса прослушивания конкретной книги"""
+    
+    # Проверяем существование книги
+    book = db.query(Book).filter(
+        Book.id == book_id,
+        Book.is_active == True
+    ).first()
+    
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    # Ищем запись в истории
+    history = db.query(ListeningHistory).filter(
+        ListeningHistory.user_id == current_user.id,
+        ListeningHistory.book_id == book_id
+    ).first()
+    
+    if not history:
+        return {
+            "current_position": 0,
+            "total_duration": book.duration_seconds,
+            "progress_percent": 0.0,
+            "is_finished": False,
+            "play_count": 0,
+            "last_played": None
+        }
+    
+    progress_percent = calculate_progress_percent(
+        history.current_position,
+        history.total_duration or book.duration_seconds or 0
+    )
+    
+    return {
+        "current_position": history.current_position,
+        "total_duration": history.total_duration or book.duration_seconds,
+        "progress_percent": progress_percent,
+        "is_finished": history.is_finished,
+        "play_count": history.play_count,
+        "last_played": history.last_played
+    }
+
+@router.post("/history/{book_id}/finish", response_model=StatusResponse)
+async def mark_book_finished(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Отметить книгу как прослушанную"""
+    
+    # Проверяем существование книги
+    book = db.query(Book).filter(
+        Book.id == book_id,
+        Book.is_active == True
+    ).first()
+    
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    # Ищем или создаем запись в истории
+    history = db.query(ListeningHistory).filter(
+        ListeningHistory.user_id == current_user.id,
+        ListeningHistory.book_id == book_id
+    ).first()
+    
+    if history:
+        history.is_finished = True
+        history.last_played = datetime.utcnow()
+    else:
+        history = ListeningHistory(
+            user_id=current_user.id,
+            book_id=book_id,
+            current_position=book.duration_seconds or 0,
+            total_duration=book.duration_seconds,
+            is_finished=True,
+            play_count=1
+        )
+        db.add(history)
+    
+    db.commit()
+    
+    return StatusResponse(status="success", message="Book marked as finished") 

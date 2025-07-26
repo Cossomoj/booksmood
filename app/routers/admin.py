@@ -269,4 +269,55 @@ async def get_admin_users(
     offset = (page - 1) * limit
     users = db.query(User).offset(offset).limit(limit).all()
     
-    return [UserResponse.model_validate(user) for user in users] 
+    return [UserResponse.model_validate(user) for user in users]
+
+@router.post("/setup-demo-data", response_model=StatusResponse)
+async def setup_demo_data(
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(get_current_admin)
+):
+    """Создание демонстрационных данных"""
+    
+    try:
+        # Создаем категории если их нет
+        categories_data = [
+            {"name": "Классика", "emoji": "📚"},
+            {"name": "Фантастика", "emoji": "🚀"},
+            {"name": "Детективы", "emoji": "🕵️"},
+            {"name": "Романы", "emoji": "❤️"},
+            {"name": "Бизнес", "emoji": "💼"},
+            {"name": "Психология", "emoji": "🧠"},
+            {"name": "История", "emoji": "🏛️"},
+            {"name": "Биографии", "emoji": "👤"}
+        ]
+        
+        for cat_data in categories_data:
+            existing = db.query(Category).filter(Category.name == cat_data["name"]).first()
+            if not existing:
+                category = Category(**cat_data)
+                db.add(category)
+        
+        db.commit()
+        
+        return StatusResponse(
+            status="success", 
+            message="Демонстрационные данные созданы успешно"
+        )
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/books", response_model=List[BookResponse])
+async def get_admin_books(
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, le=100),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(get_current_admin)
+):
+    """Получение списка книг для админа"""
+    
+    offset = (page - 1) * limit
+    books = db.query(Book).offset(offset).limit(limit).all()
+    
+    return [BookResponse.model_validate(book) for book in books] 
