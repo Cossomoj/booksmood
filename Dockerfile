@@ -2,9 +2,9 @@ FROM python:3.13-slim
 
 # Метаданные
 LABEL maintainer="BooksMood Team"
-LABEL description="BooksMood AudioFlow - Telegram Mini App для аудиокниг"
+LABEL description="BooksMood AudioFlow - Telegram Mini App для аудиокниг (SSL Version)"
 
-# Устанавливаем системные зависимости
+# Устанавливаем системные зависимости включая certbot
 RUN apt-get update && apt-get install -y \
     git \
     openssh-client \
@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y \
     nginx \
     sqlite3 \
     curl \
+    certbot \
+    python3-certbot-nginx \
+    cron \
     && rm -rf /var/lib/apt/lists/*
 
 # Создаём рабочую директорию
@@ -41,20 +44,28 @@ RUN /venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # Создаём необходимые директории
 RUN mkdir -p /app/app/static/uploads
-RUN mkdir -p /app/data                  # Папка для базы данных
+RUN mkdir -p /app/data
 RUN mkdir -p /var/log
 RUN mkdir -p /var/www/html
+RUN mkdir -p /etc/letsencrypt
+RUN mkdir -p /var/lib/letsencrypt
 
 # Устанавливаем права
 RUN chmod +x /app/scripts/*.sh 2>/dev/null || true
 RUN chmod 755 /app/app/static/uploads
-RUN chmod 755 /app/data                 # Права для папки базы данных
+RUN chmod 755 /app/data
 
-# Создаём конфигурацию Nginx
+# Создаём базовую конфигурацию Nginx (HTTP only для начала)
 RUN echo 'server {\n\
     listen 80;\n\
-    server_name localhost;\n\
+    server_name app.booksmood.ru;\n\
     \n\
+    # Для получения SSL сертификата\n\
+    location /.well-known/acme-challenge/ {\n\
+        root /var/www/html;\n\
+    }\n\
+    \n\
+    # Остальной трафик\n\
     location / {\n\
         proxy_pass http://localhost:8000;\n\
         proxy_set_header Host $host;\n\
@@ -75,6 +86,27 @@ RUN echo 'server {\n\
         add_header Content-Type text/plain;\n\
     }\n\
 }' > /etc/nginx/sites-available/default
+
+# Создаём скрипт для получения SSL сертификата
+RUN echo '#!/bin/bash\n\
+echo "🔐 Получение SSL сертификата для app.booksmood.ru..."\n\
+\n\
+# Ждем старт nginx\n\
+sleep 10\n\
+\n\
+# Получаем сертификат\n\
+certbot --nginx -d app.booksmood.ru --non-interactive --agree-tos --email admin@booksmood.ru --redirect\n\
+\n\
+if [ $? -eq 0 ]; then\n\
+    echo "✅ SSL сертификат получен успешно!"\n\
+    # Настраиваем автообновление\n\
+    echo "0 12 * * * /usr/bin/certbot renew --quiet" >> /var/spool/cron/crontabs/root\n\
+    service cron start\n\
+else\n\
+    echo "❌ Ошибка получения SSL сертификата"\n\
+    echo "🔄 Продолжаем работу по HTTP"\n\
+fi\n\
+' > /app/ssl-setup.sh && chmod +x /app/ssl-setup.sh
 
 # Инициализация базы данных при сборке
 RUN cd /app && /venv/bin/python scripts/init_db.py
@@ -108,10 +140,20 @@ priority=200\n\
 startretries=5\n\
 stopasgroup=true\n\
 killasgroup=true\n\
+\n\
+[program:ssl_setup]\n\
+command=/app/ssl-setup.sh\n\
+autostart=true\n\
+autorestart=false\n\
+stdout_logfile=/var/log/ssl_setup.log\n\
+stderr_logfile=/var/log/ssl_setup_err.log\n\
+priority=300\n\
+startsecs=0\n\
+exitcodes=0,1,2\n\
 ' > /etc/supervisor/conf.d/booksmood.conf
 
 # Копируем environment файл по умолчанию
-RUN echo '# BooksMood Docker Environment\n\
+RUN echo '# BooksMood Docker Environment (SSL)\n\
 BOT_TOKEN=8045700099:AAGCARHl1gc2sO5cCvoC3LlIHFC5hC04znY\n\
 TELEGRAM_BOT_USERNAME=booksmoodbot\n\
 SECRET_KEY=booksmood-docker-secret-key-2024-change-in-production\n\
@@ -124,13 +166,14 @@ UPLOAD_DIR=./app/static/uploads\n\
 MAX_FILE_SIZE=104857600\n\
 HOST=0.0.0.0\n\
 PORT=8000\n\
+PRODUCTION_URL=https://app.booksmood.ru\n\
 ' > /app/.env
 
 # Открываем порты
-EXPOSE 80 8000
+EXPOSE 80 443 8000
 
 # Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD curl -f http://localhost/health || exit 1
 
 # Запускаем supervisor
