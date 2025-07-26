@@ -10,7 +10,7 @@ from ..schemas import (
     RatingResponse, BookRating, BookmarkCreate, BookmarkUpdate, BookmarkResponse
 )
 from ..models import User, Book, ListeningHistory, Favorite, Rating, Bookmark
-from ..dependencies import get_current_user
+from ..dependencies import get_current_user, get_optional_user
 from ..utils import calculate_progress_percent
 
 router = APIRouter(prefix="/api/user", tags=["user"])
