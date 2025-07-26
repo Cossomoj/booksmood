@@ -51,21 +51,12 @@ RUN chmod +x /app/scripts/*.sh 2>/dev/null || true
 RUN chmod 755 /app/app/static/uploads
 RUN chmod 755 /app/data
 
-# Создаём базовую конфигурацию Nginx
+# Создаём базовую конфигурацию Nginx (будет перезаписана скриптом check-ssl.sh)
 RUN echo 'server {\n\
     listen 80;\n\
     server_name app.booksmood.ru;\n\
     \n\
-    # Для получения SSL сертификата\n\
-    location /.well-known/acme-challenge/ {\n\
-        root /var/www/html;\n\
-    }\n\
-    \n\
-    # Редирект на HTTPS если сертификат есть\n\
     location / {\n\
-        if (-f /etc/nginx/ssl/fullchain.pem) {\n\
-            return 301 https://$server_name$request_uri;\n\
-        }\n\
         proxy_pass http://localhost:8000;\n\
         proxy_set_header Host $host;\n\
         proxy_set_header X-Real-IP $remote_addr;\n\
@@ -84,25 +75,44 @@ RUN echo 'server {\n\
         return 200 "healthy\\n";\n\
         add_header Content-Type text/plain;\n\
     }\n\
+}' > /etc/nginx/sites-available/default
+
+# Скрипт для проверки и копирования SSL сертификатов
+RUN echo '#!/bin/bash\n\
+echo "🔐 Проверка SSL сертификатов..."\n\
+\n\
+# Создаем директорию если не существует\n\
+mkdir -p /etc/nginx/ssl\n\
+\n\
+if [ -f "/host-ssl/fullchain.pem" ] && [ -f "/host-ssl/privkey.pem" ]; then\n\
+    echo "✅ SSL сертификаты найдены, копируем..."\n\
+    cp /host-ssl/fullchain.pem /etc/nginx/ssl/\n\
+    cp /host-ssl/privkey.pem /etc/nginx/ssl/\n\
+    chmod 644 /etc/nginx/ssl/*.pem\n\
+    echo "✅ SSL сертификаты скопированы в /etc/nginx/ssl/"\n\
+    echo "🔐 HTTPS будет доступен по адресу: https://app.booksmood.ru"\n\
+    \n\
+    # Создаем конфигурацию с редиректом HTTP→HTTPS\n\
+    cat > /etc/nginx/sites-available/default << "EOF"\n\
+server {\n\
+    listen 80;\n\
+    server_name app.booksmood.ru;\n\
+    return 301 https://$server_name$request_uri;\n\
 }\n\
 \n\
-# HTTPS сервер (будет работать только если есть сертификаты)\n\
 server {\n\
     listen 443 ssl http2;\n\
     server_name app.booksmood.ru;\n\
     \n\
-    # SSL сертификаты (будут подмонтированы из хоста)\n\
     ssl_certificate /etc/nginx/ssl/fullchain.pem;\n\
     ssl_certificate_key /etc/nginx/ssl/privkey.pem;\n\
     \n\
-    # SSL настройки\n\
     ssl_protocols TLSv1.2 TLSv1.3;\n\
     ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384;\n\
     ssl_prefer_server_ciphers off;\n\
     ssl_session_cache shared:SSL:10m;\n\
     ssl_session_timeout 1d;\n\
     \n\
-    # Security headers\n\
     add_header Strict-Transport-Security "max-age=31536000" always;\n\
     add_header X-Frame-Options DENY;\n\
     add_header X-Content-Type-Options nosniff;\n\
@@ -128,7 +138,6 @@ server {\n\
     }\n\
 }\n\
 \n\
-# Админ панель на порту 8088\n\
 server {\n\
     listen 8088;\n\
     server_name _;\n\
@@ -146,23 +155,76 @@ server {\n\
         expires 30d;\n\
         add_header Cache-Control "public, immutable";\n\
     }\n\
-}' > /etc/nginx/sites-available/default
-
-# Скрипт для проверки и копирования SSL сертификатов
-RUN echo '#!/bin/bash\n\
-echo "🔐 Проверка SSL сертификатов..."\n\
-\n\
-if [ -f "/host-ssl/fullchain.pem" ] && [ -f "/host-ssl/privkey.pem" ]; then\n\
-    echo "✅ SSL сертификаты найдены, копируем..."\n\
-    cp /host-ssl/*.pem /etc/nginx/ssl/ 2>/dev/null || true\n\
-    chmod 644 /etc/nginx/ssl/*.pem\n\
-    echo "✅ SSL сертификаты скопированы"\n\
-    echo "🔐 HTTPS будет доступен по адресу: https://app.booksmood.ru"\n\
+}\n\
+EOF\n\
+    \n\
+    echo "✅ Конфигурация nginx с HTTPS создана"\n\
 else\n\
     echo "⚠️  SSL сертификаты не найдены в /host-ssl/"\n\
     echo "🔧 Работаем только по HTTP: http://app.booksmood.ru"\n\
+    \n\
+    # Создаем конфигурацию только для HTTP\n\
+    cat > /etc/nginx/sites-available/default << "EOF"\n\
+server {\n\
+    listen 80;\n\
+    server_name app.booksmood.ru;\n\
+    \n\
+    location /.well-known/acme-challenge/ {\n\
+        root /var/www/html;\n\
+    }\n\
+    \n\
+    location / {\n\
+        proxy_pass http://localhost:8000;\n\
+        proxy_set_header Host $host;\n\
+        proxy_set_header X-Real-IP $remote_addr;\n\
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n\
+        proxy_set_header X-Forwarded-Proto $scheme;\n\
+    }\n\
+    \n\
+    location /static/ {\n\
+        alias /app/app/static/;\n\
+        expires 30d;\n\
+        add_header Cache-Control "public, immutable";\n\
+    }\n\
+    \n\
+    location /health {\n\
+        access_log off;\n\
+        return 200 "healthy\\n";\n\
+        add_header Content-Type text/plain;\n\
+    }\n\
+}\n\
+\n\
+server {\n\
+    listen 8088;\n\
+    server_name _;\n\
+    \n\
+    location / {\n\
+        proxy_pass http://localhost:8000;\n\
+        proxy_set_header Host $host;\n\
+        proxy_set_header X-Real-IP $remote_addr;\n\
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n\
+        proxy_set_header X-Forwarded-Proto $scheme;\n\
+    }\n\
+    \n\
+    location /static/ {\n\
+        alias /app/app/static/;\n\
+        expires 30d;\n\
+        add_header Cache-Control "public, immutable";\n\
+    }\n\
+}\n\
+EOF\n\
+    \n\
+    echo "✅ Конфигурация nginx только для HTTP создана"\n\
     echo "💡 Для генерации сертификата запустите на VPS:"\n\
     echo "   bash /opt/ssl-certs/ssl-generate.sh"\n\
+fi\n\
+\n\
+echo "📋 Проверяем nginx конфигурацию..."\n\
+nginx -t\n\
+if [ $? -eq 0 ]; then\n\
+    echo "✅ Nginx конфигурация корректна"\n\
+else\n\
+    echo "❌ Ошибка в конфигурации nginx"\n\
 fi\n\
 ' > /app/check-ssl.sh && chmod +x /app/check-ssl.sh
 
