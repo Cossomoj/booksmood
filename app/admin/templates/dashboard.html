@@ -402,6 +402,7 @@
         <!-- Навигация по разделам -->
         <div class="page-tabs">
             <button class="tab-btn active" onclick="showTab('dashboard')">📊 Дашборд</button>
+            <button class="tab-btn" onclick="showTab('analytics')">📈 Аналитика</button>
             <button class="tab-btn" onclick="showTab('add-book')">➕ Добавить книгу</button>
             <button class="tab-btn" onclick="showTab('books')">📚 Управление книгами</button>
             <button class="tab-btn" onclick="showTab('categories')">🏷️ Категории</button>
@@ -431,6 +432,68 @@
             <div class="section">
                 <h2 class="section-title">Последние добавленные книги</h2>
                 <div id="recentBooks">Загрузка...</div>
+            </div>
+        </div>
+
+        <!-- Расширенная аналитика -->
+        <div id="analytics" class="tab-content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="analyticsActiveUsersToday">0</div>
+                    <div class="stat-label">Активных пользователей сегодня</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="analyticsActiveUsersWeek">0</div>
+                    <div class="stat-label">Активных за неделю</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="analyticsListeningHours">0</div>
+                    <div class="stat-label">Часов прослушано</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="analyticsCompletionRate">0%</div>
+                    <div class="stat-label">Коэффициент завершения</div>
+                </div>
+            </div>
+
+            <!-- Графики временных рядов -->
+            <div class="section">
+                <h2 class="section-title">Динамика активности (30 дней)</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <h3 style="margin-bottom: 15px; font-size: 16px;">Новые пользователи</h3>
+                        <canvas id="newUsersChart" width="400" height="200"></canvas>
+                    </div>
+                    <div>
+                        <h3 style="margin-bottom: 15px; font-size: 16px;">Активные пользователи</h3>
+                        <canvas id="activeUsersChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <h3 style="margin-bottom: 15px; font-size: 16px;">Часы прослушивания</h3>
+                    <canvas id="listeningChart" width="800" height="200"></canvas>
+                </div>
+            </div>
+
+            <!-- Топ контент -->
+            <div class="section">
+                <h2 class="section-title">Популярный контент</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <h3 style="margin-bottom: 15px; font-size: 16px;">📚 Топ книги</h3>
+                        <div id="topBooksList"></div>
+                    </div>
+                    <div>
+                        <h3 style="margin-bottom: 15px; font-size: 16px;">🏷️ Топ категории</h3>
+                        <div id="topCategoriesList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Детальная аналитика книг -->
+            <div class="section">
+                <h2 class="section-title">Аналитика книг</h2>
+                <div id="booksAnalyticsTable"></div>
             </div>
         </div>
 
@@ -539,6 +602,7 @@
         let currentTab = 'dashboard';
         let books = [];
         let categories = [];
+        let analyticsData = null;
         
         // Инициализация
         document.addEventListener('DOMContentLoaded', () => {
@@ -570,7 +634,211 @@
                 loadBooks();
             } else if (tab === 'categories') {
                 loadCategoriesTable();
+            } else if (tab === 'analytics') {
+                loadAnalytics();
             }
+        }
+        
+        // Загрузка расширенной аналитики
+        async function loadAnalytics() {
+            try {
+                const response = await fetch('/api/admin/analytics', {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+                });
+                
+                if (response.ok) {
+                    analyticsData = await response.json();
+                    renderAnalytics();
+                } else {
+                    console.error('Ошибка загрузки аналитики');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки аналитики:', error);
+            }
+        }
+        
+        // Рендеринг аналитических данных
+        function renderAnalytics() {
+            if (!analyticsData) return;
+            
+            const { stats, top_content } = analyticsData;
+            
+            // Обновляем основные метрики
+            document.getElementById('analyticsActiveUsersToday').textContent = stats.user_activity.active_users_today;
+            document.getElementById('analyticsActiveUsersWeek').textContent = stats.user_activity.active_users_week;
+            document.getElementById('analyticsListeningHours').textContent = Math.round(stats.listening_trends.total_hours_listened);
+            document.getElementById('analyticsCompletionRate').textContent = Math.round(stats.listening_trends.completion_rate) + '%';
+            
+            // Рендерим графики
+            renderChart('newUsersChart', stats.daily_new_users, 'Новые пользователи', '#10b981');
+            renderChart('activeUsersChart', stats.daily_active_users, 'Активные пользователи', '#6366f1');
+            renderChart('listeningChart', stats.daily_listening_hours, 'Часы прослушивания', '#f59e0b');
+            
+            // Рендерим топ контент
+            renderTopBooks(top_content.top_books);
+            renderTopCategories(top_content.top_categories);
+            renderBooksAnalyticsTable(top_content.top_books);
+        }
+        
+        // Простой рендеринг графика на Canvas
+        function renderChart(canvasId, data, label, color) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Очищаем canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            if (data.length === 0) return;
+            
+            // Находим максимальное значение для масштабирования
+            const maxValue = Math.max(...data.map(d => d.value));
+            const minValue = Math.min(...data.map(d => d.value));
+            const range = maxValue - minValue || 1;
+            
+            // Отступы
+            const padding = 40;
+            const graphWidth = width - padding * 2;
+            const graphHeight = height - padding * 2;
+            
+            // Рисуем оси
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 1;
+            
+            // Горизонтальная ось
+            ctx.beginPath();
+            ctx.moveTo(padding, height - padding);
+            ctx.lineTo(width - padding, height - padding);
+            ctx.stroke();
+            
+            // Вертикальная ось
+            ctx.beginPath();
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, height - padding);
+            ctx.stroke();
+            
+            // Рисуем график
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color + '40'; // Прозрачность для области
+            ctx.lineWidth = 2;
+            
+            const stepX = graphWidth / (data.length - 1);
+            
+            ctx.beginPath();
+            for (let i = 0; i < data.length; i++) {
+                const x = padding + i * stepX;
+                const y = height - padding - ((data[i].value - minValue) / range) * graphHeight;
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            
+            // Заливаем область под графиком
+            ctx.lineTo(width - padding, height - padding);
+            ctx.lineTo(padding, height - padding);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Добавляем точки
+            ctx.fillStyle = color;
+            for (let i = 0; i < data.length; i++) {
+                const x = padding + i * stepX;
+                const y = height - padding - ((data[i].value - minValue) / range) * graphHeight;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 3, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            
+            // Подписи значений (упрощенно)
+            ctx.fillStyle = '#666';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Max: ${maxValue}`, padding + 5, padding + 15);
+            ctx.fillText(`Min: ${minValue}`, padding + 5, height - padding - 5);
+        }
+        
+        // Рендеринг топ книг
+        function renderTopBooks(topBooks) {
+            const html = topBooks.map((book, index) => `
+                <div style="display: flex; align-items: center; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px;">
+                    <div style="width: 24px; height: 24px; background: #6366f1; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; margin-right: 12px;">
+                        ${index + 1}
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 500; font-size: 14px;">${book.title}</div>
+                        <div style="font-size: 12px; color: #666;">${book.author}</div>
+                    </div>
+                    <div style="text-align: right; font-size: 12px;">
+                        <div style="font-weight: 600;">${book.plays_count} ▶️</div>
+                        <div style="color: #666;">⭐ ${book.average_rating.toFixed(1)}</div>
+                    </div>
+                </div>
+            `).join('');
+            
+            document.getElementById('topBooksList').innerHTML = html || 'Нет данных';
+        }
+        
+        // Рендеринг топ категорий
+        function renderTopCategories(topCategories) {
+            const html = topCategories.map((category, index) => `
+                <div style="display: flex; align-items: center; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px;">
+                    <div style="width: 24px; height: 24px; background: #10b981; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; margin-right: 12px;">
+                        ${index + 1}
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 500; font-size: 14px;">${category.emoji || ''} ${category.name}</div>
+                        <div style="font-size: 12px; color: #666;">${category.books_count} книг</div>
+                    </div>
+                    <div style="text-align: right; font-size: 12px;">
+                        <div style="font-weight: 600;">${category.total_plays} ▶️</div>
+                        <div style="color: #666;">👥 ${category.unique_listeners}</div>
+                    </div>
+                </div>
+            `).join('');
+            
+            document.getElementById('topCategoriesList').innerHTML = html || 'Нет данных';
+        }
+        
+        // Рендеринг таблицы аналитики книг
+        function renderBooksAnalyticsTable(books) {
+            const html = `
+                <table class="books-table">
+                    <thead>
+                        <tr>
+                            <th>Название</th>
+                            <th>Автор</th>
+                            <th>Прослушивания</th>
+                            <th>В избранном</th>
+                            <th>Рейтинг</th>
+                            <th>Завершений</th>
+                            <th>Активность</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${books.map(book => `
+                            <tr>
+                                <td style="font-weight: 500;">${book.title}</td>
+                                <td>${book.author}</td>
+                                <td><span style="background: #ddd6fe; padding: 4px 8px; border-radius: 4px; font-size: 12px;">▶️ ${book.plays_count}</span></td>
+                                <td><span style="background: #fed7d7; padding: 4px 8px; border-radius: 4px; font-size: 12px;">❤️ ${book.favorites_count}</span></td>
+                                <td><span style="background: #fef3c7; padding: 4px 8px; border-radius: 4px; font-size: 12px;">⭐ ${book.average_rating.toFixed(1)} (${book.total_ratings})</span></td>
+                                <td><span style="background: #dcfce7; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${book.completion_rate.toFixed(1)}%</span></td>
+                                <td><span style="background: #e0f2fe; padding: 4px 8px; border-radius: 4px; font-size: 12px;">📈 ${book.recent_activity}</span></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            document.getElementById('booksAnalyticsTable').innerHTML = html;
         }
         
         // Загрузка данных дашборда

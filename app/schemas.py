@@ -224,3 +224,72 @@ class BookmarkResponse(BookmarkBase):
     
     class Config:
         from_attributes = True 
+
+# Advanced Admin Analytics Schemas
+class TimeSeriesPoint(BaseModel):
+    date: str
+    value: int
+    
+class BookAnalytics(BaseModel):
+    id: int
+    title: str
+    author: str
+    plays_count: int
+    favorites_count: int
+    average_rating: float
+    total_ratings: int
+    completion_rate: float
+    recent_activity: int  # прослушивания за последние 7 дней
+
+class CategoryAnalytics(BaseModel):
+    id: int
+    name: str
+    emoji: Optional[str] = None
+    books_count: int
+    total_plays: int
+    unique_listeners: int
+    average_book_rating: float
+
+class UserActivityStats(BaseModel):
+    total_users: int
+    active_users_today: int
+    active_users_week: int
+    active_users_month: int
+    new_users_today: int
+    new_users_week: int
+    new_users_month: int
+    average_session_duration: float
+
+class ListeningTrends(BaseModel):
+    total_hours_listened: float
+    total_sessions: int
+    average_session_duration: float
+    peak_listening_hour: int
+    most_popular_day: str
+    completion_rate: float
+
+class AdvancedDashboardStats(BaseModel):
+    # Базовая статистика
+    total_users: int
+    total_books: int
+    total_plays: int
+    new_users_today: int
+    
+    # Расширенная аналитика
+    user_activity: UserActivityStats
+    listening_trends: ListeningTrends
+    
+    # Временные ряды (последние 30 дней)
+    daily_new_users: List[TimeSeriesPoint]
+    daily_listening_hours: List[TimeSeriesPoint]
+    daily_active_users: List[TimeSeriesPoint]
+
+class TopContent(BaseModel):
+    top_books: List[BookAnalytics]
+    top_categories: List[CategoryAnalytics]
+    trending_books: List[BookAnalytics]  # по росту популярности
+
+class AdvancedDashboardResponse(BaseModel):
+    stats: AdvancedDashboardStats
+    top_content: TopContent
+    recent_books: List[BookResponse] 

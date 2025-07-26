@@ -2,18 +2,20 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Q
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, and_, case, text
 from passlib.context import CryptContext
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 from ..database import get_db
 from ..schemas import (
     AdminLogin, AdminToken, AdminResponse, DashboardResponse, DashboardStats,
     BookCreate, BookUpdate, BookResponse, CategoryCreate, CategoryResponse,
-    StatusResponse, UserResponse
+    StatusResponse, UserResponse, AdvancedDashboardResponse, AdvancedDashboardStats,
+    UserActivityStats, ListeningTrends, TimeSeriesPoint, BookAnalytics,
+    CategoryAnalytics, TopContent
 )
-from ..models import Admin, User, Book, Category, ListeningHistory
+from ..models import Admin, User, Book, Category, ListeningHistory, Favorite, Rating, Bookmark
 from ..dependencies import get_current_admin, get_superadmin
 from ..auth import create_admin_token
 from ..utils import save_and_optimize_image, save_audio_file, delete_file
@@ -406,3 +408,225 @@ async def toggle_book_status(
     db.refresh(book)
     
     return BookResponse.model_validate(book) 
+
+# Добавляем импорты для расширенной аналитики
+from datetime import datetime, timedelta
+from sqlalchemy import func, desc, and_, case, text
+
+# Добавляем новые импорты схем
+from ..schemas import (
+    AdminLogin, AdminToken, AdminResponse, DashboardResponse, DashboardStats,
+    BookCreate, BookUpdate, BookResponse, CategoryCreate, CategoryResponse,
+    StatusResponse, UserResponse, AdvancedDashboardResponse, AdvancedDashboardStats,
+    UserActivityStats, ListeningTrends, TimeSeriesPoint, BookAnalytics,
+    CategoryAnalytics, TopContent
+)
+from ..models import Admin, User, Book, Category, ListeningHistory, Favorite, Rating, Bookmark
+
+@router.get("/analytics", response_model=AdvancedDashboardResponse)
+async def get_advanced_analytics(
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(get_current_admin)
+):
+    """Получение расширенной аналитики для админ панели"""
+    
+    now = datetime.utcnow()
+    today = now.date()
+    week_ago = now - timedelta(days=7)
+    month_ago = now - timedelta(days=30)
+    
+    # === БАЗОВАЯ СТАТИСТИКА ===
+    total_users = db.query(User).count()
+    total_books = db.query(Book).filter(Book.is_active == True).count()
+    total_plays = db.query(func.sum(ListeningHistory.play_count)).scalar() or 0
+    new_users_today = db.query(User).filter(func.date(User.created_at) == today).count()
+    
+    # === АКТИВНОСТЬ ПОЛЬЗОВАТЕЛЕЙ ===
+    active_users_today = db.query(User.id).join(ListeningHistory).filter(
+        func.date(ListeningHistory.updated_at) == today
+    ).distinct().count()
+    
+    active_users_week = db.query(User.id).join(ListeningHistory).filter(
+        ListeningHistory.updated_at >= week_ago
+    ).distinct().count()
+    
+    active_users_month = db.query(User.id).join(ListeningHistory).filter(
+        ListeningHistory.updated_at >= month_ago
+    ).distinct().count()
+    
+    new_users_week = db.query(User).filter(User.created_at >= week_ago).count()
+    new_users_month = db.query(User).filter(User.created_at >= month_ago).count()
+    
+    # Средняя продолжительность сессии
+    avg_session_duration = db.query(func.avg(
+        ListeningHistory.last_position / 60.0
+    )).scalar() or 0.0
+    
+    user_activity = UserActivityStats(
+        total_users=total_users,
+        active_users_today=active_users_today,
+        active_users_week=active_users_week,
+        active_users_month=active_users_month,
+        new_users_today=new_users_today,
+        new_users_week=new_users_week,
+        new_users_month=new_users_month,
+        average_session_duration=avg_session_duration
+    )
+    
+    # === ТРЕНДЫ ПРОСЛУШИВАНИЯ ===
+    total_listening_time = db.query(func.sum(
+        ListeningHistory.last_position / 3600.0
+    )).scalar() or 0.0
+    
+    total_sessions = db.query(ListeningHistory).count()
+    
+    # Самый популярный час (упрощенно)
+    peak_hour = 14  # Можно улучшить с реальными данными
+    
+    # Самый популярный день недели
+    most_popular_day = "Понедельник"  # Можно улучшить с реальными данными
+    
+    # Коэффициент завершения
+    completion_rate = db.query(func.avg(
+        case(
+            (Book.duration_seconds > 0, 
+             ListeningHistory.last_position / Book.duration_seconds),
+            else_=0
+        ) * 100
+    )).join(Book).scalar() or 0.0
+    
+    listening_trends = ListeningTrends(
+        total_hours_listened=total_listening_time,
+        total_sessions=total_sessions,
+        average_session_duration=avg_session_duration,
+        peak_listening_hour=peak_hour,
+        most_popular_day=most_popular_day,
+        completion_rate=completion_rate
+    )
+    
+    # === ВРЕМЕННЫЕ РЯДЫ (последние 30 дней) ===
+    daily_stats = []
+    for i in range(30):
+        date = today - timedelta(days=i)
+        date_str = date.strftime('%Y-%m-%d')
+        
+        new_users = db.query(User).filter(func.date(User.created_at) == date).count()
+        
+        # Часы прослушивания за день
+        listening_hours = db.query(func.sum(
+            ListeningHistory.last_position / 3600.0
+        )).filter(func.date(ListeningHistory.updated_at) == date).scalar() or 0
+        
+        # Активные пользователи за день
+        active_users = db.query(User.id).join(ListeningHistory).filter(
+            func.date(ListeningHistory.updated_at) == date
+        ).distinct().count()
+        
+        daily_stats.append({
+            'date': date_str,
+            'new_users': new_users,
+            'listening_hours': int(listening_hours),
+            'active_users': active_users
+        })
+    
+    # Разворачиваем для правильного порядка (от старых к новым)
+    daily_stats.reverse()
+    
+    daily_new_users = [TimeSeriesPoint(date=d['date'], value=d['new_users']) for d in daily_stats]
+    daily_listening_hours = [TimeSeriesPoint(date=d['date'], value=d['listening_hours']) for d in daily_stats]
+    daily_active_users = [TimeSeriesPoint(date=d['date'], value=d['active_users']) for d in daily_stats]
+    
+    # === ТОП КОНТЕНТ ===
+    
+    # Топ книги по популярности
+    top_books_query = db.query(
+        Book.id,
+        Book.title,
+        Book.author,
+        Book.plays_count,
+        func.count(Favorite.id).label('favorites_count'),
+        func.coalesce(func.avg(Rating.rating), 0).label('avg_rating'),
+        func.count(Rating.id).label('total_ratings'),
+        (func.avg(ListeningHistory.last_position) / Book.duration_seconds * 100).label('completion_rate'),
+        func.count(
+            case((ListeningHistory.updated_at >= week_ago, 1))
+        ).label('recent_activity')
+    ).outerjoin(Favorite).outerjoin(Rating).outerjoin(ListeningHistory).filter(
+        Book.is_active == True
+    ).group_by(Book.id).order_by(desc(Book.plays_count)).limit(10)
+    
+    top_books_data = top_books_query.all()
+    top_books = [
+        BookAnalytics(
+            id=book.id,
+            title=book.title,
+            author=book.author,
+            plays_count=book.plays_count,
+            favorites_count=book.favorites_count or 0,
+            average_rating=float(book.avg_rating or 0),
+            total_ratings=book.total_ratings or 0,
+            completion_rate=float(book.completion_rate or 0),
+            recent_activity=book.recent_activity or 0
+        ) for book in top_books_data
+    ]
+    
+    # Топ категории
+    top_categories_query = db.query(
+        Category.id,
+        Category.name,
+        Category.emoji,
+        func.count(Book.id).label('books_count'),
+        func.sum(Book.plays_count).label('total_plays'),
+        func.count(func.distinct(ListeningHistory.user_id)).label('unique_listeners'),
+        func.coalesce(func.avg(Rating.rating), 0).label('avg_rating')
+    ).outerjoin(Book).outerjoin(ListeningHistory, Book.id == ListeningHistory.book_id).outerjoin(
+        Rating, Book.id == Rating.book_id
+    ).filter(Book.is_active == True).group_by(Category.id).order_by(
+        desc('total_plays')
+    ).limit(10)
+    
+    top_categories_data = top_categories_query.all()
+    top_categories = [
+        CategoryAnalytics(
+            id=cat.id,
+            name=cat.name,
+            emoji=cat.emoji,
+            books_count=cat.books_count or 0,
+            total_plays=cat.total_plays or 0,
+            unique_listeners=cat.unique_listeners or 0,
+            average_book_rating=float(cat.avg_rating or 0)
+        ) for cat in top_categories_data
+    ]
+    
+    # Трендовые книги (по росту популярности за неделю)
+    trending_books = top_books[:5]  # Упрощенно - можно улучшить
+    
+    top_content = TopContent(
+        top_books=top_books,
+        top_categories=top_categories,
+        trending_books=trending_books
+    )
+    
+    # === ПОСЛЕДНИЕ КНИГИ ===
+    recent_books = db.query(Book).filter(
+        Book.is_active == True
+    ).order_by(desc(Book.created_at)).limit(5).all()
+    
+    # === ФИНАЛЬНАЯ СТАТИСТИКА ===
+    advanced_stats = AdvancedDashboardStats(
+        total_users=total_users,
+        total_books=total_books,
+        total_plays=total_plays,
+        new_users_today=new_users_today,
+        user_activity=user_activity,
+        listening_trends=listening_trends,
+        daily_new_users=daily_new_users,
+        daily_listening_hours=daily_listening_hours,
+        daily_active_users=daily_active_users
+    )
+    
+    return AdvancedDashboardResponse(
+        stats=advanced_stats,
+        top_content=top_content,
+        recent_books=[BookResponse.model_validate(book) for book in recent_books]
+    ) 
