@@ -955,6 +955,289 @@ class AudioFlowApp {
             `;
         }
     }
+
+    // Функции для работы с закладками
+    async createBookmark(bookId, position, title = null, note = null) {
+        try {
+            const bookmarkData = {
+                book_id: bookId,
+                position: Math.floor(position),
+                title: title,
+                note: note
+            };
+
+            const response = await this.apiCall('/api/user/bookmarks', {
+                method: 'POST',
+                body: JSON.stringify(bookmarkData)
+            });
+
+            if (response) {
+                this.showNotification('Закладка создана', 'success');
+                await this.loadBookBookmarks(bookId);
+                return response;
+            }
+        } catch (error) {
+            console.error('Failed to create bookmark:', error);
+            this.showError('Не удалось создать закладку');
+        }
+        return null;
+    }
+
+    async loadBookBookmarks(bookId) {
+        try {
+            const response = await this.apiCall(`/api/user/bookmarks/${bookId}`);
+            if (response) {
+                this.currentBookmarks = response;
+                this.updateBookmarksUI();
+                return response;
+            }
+        } catch (error) {
+            console.error('Failed to load bookmarks:', error);
+        }
+        return [];
+    }
+
+    async deleteBookmark(bookmarkId) {
+        try {
+            const response = await this.apiCall(`/api/user/bookmarks/${bookmarkId}`, {
+                method: 'DELETE'
+            });
+
+            if (response && response.status === 'success') {
+                this.showNotification('Закладка удалена', 'success');
+                if (this.currentBook) {
+                    await this.loadBookBookmarks(this.currentBook.id);
+                }
+                return true;
+            }
+        } catch (error) {
+            console.error('Failed to delete bookmark:', error);
+            this.showError('Не удалось удалить закладку');
+        }
+        return false;
+    }
+
+    async jumpToBookmark(position) {
+        if (this.audioPlayer && this.currentBook) {
+            this.audioPlayer.currentTime = position;
+            this.updateProgress();
+            this.showNotification(`Переход к позиции ${this.formatDuration(position)}`, 'info');
+        }
+    }
+
+    updateBookmarksUI() {
+        const bookmarksContainer = document.querySelector('.bookmarks-list');
+        if (!bookmarksContainer) return;
+
+        if (!this.currentBookmarks || this.currentBookmarks.length === 0) {
+            bookmarksContainer.innerHTML = `
+                <div style="text-align: center; color: var(--text-secondary); padding: 20px;">
+                    <p>Нет закладок</p>
+                    <p style="font-size: 12px; margin-top: 8px;">Нажмите на кнопку закладки во время прослушивания</p>
+                </div>
+            `;
+            return;
+        }
+
+        bookmarksContainer.innerHTML = this.currentBookmarks.map(bookmark => `
+            <div class="bookmark-item" data-bookmark-id="${bookmark.id}">
+                <div class="bookmark-info" onclick="audioFlow.jumpToBookmark(${bookmark.position})">
+                    <div class="bookmark-time">${this.formatDuration(bookmark.position)}</div>
+                    <div class="bookmark-title">${bookmark.title}</div>
+                    ${bookmark.note ? `<div class="bookmark-note">${bookmark.note}</div>` : ''}
+                </div>
+                <button class="bookmark-delete-btn" 
+                        onclick="audioFlow.deleteBookmark(${bookmark.id})"
+                        title="Удалить закладку">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+            </div>
+        `).join('');
+    }
+
+    showBookmarkDialog() {
+        if (!this.currentBook || !this.audioPlayer) {
+            this.showError('Сначала выберите книгу для прослушивания');
+            return;
+        }
+
+        const currentTime = Math.floor(this.audioPlayer.currentTime);
+        const timeFormatted = this.formatDuration(currentTime);
+
+        const dialog = document.createElement('div');
+        dialog.className = 'bookmark-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="bookmark-dialog">
+                <div class="bookmark-dialog-header">
+                    <h3>Создать закладку</h3>
+                    <button class="dialog-close" onclick="this.parentElement.parentElement.parentElement.remove()">×</button>
+                </div>
+                <div class="bookmark-dialog-content">
+                    <div class="bookmark-position">
+                        Позиция: <strong>${timeFormatted}</strong>
+                    </div>
+                    <div class="form-group">
+                        <label for="bookmarkTitle">Название закладки:</label>
+                        <input type="text" id="bookmarkTitle" placeholder="Например: Важная цитата" maxlength="100">
+                    </div>
+                    <div class="form-group">
+                        <label for="bookmarkNote">Заметка (необязательно):</label>
+                        <textarea id="bookmarkNote" placeholder="Ваши комментарии..." maxlength="500" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="bookmark-dialog-actions">
+                    <button class="btn btn-secondary" onclick="this.closest('.bookmark-dialog-overlay').remove()">
+                        Отмена
+                    </button>
+                    <button class="btn btn-primary" onclick="audioFlow.saveBookmarkFromDialog(${currentTime})">
+                        Сохранить
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(dialog);
+        
+        // Фокус на поле ввода названия
+        setTimeout(() => {
+            const titleInput = dialog.querySelector('#bookmarkTitle');
+            if (titleInput) titleInput.focus();
+        }, 100);
+    }
+
+    async saveBookmarkFromDialog(position) {
+        const dialog = document.querySelector('.bookmark-dialog-overlay');
+        const title = dialog.querySelector('#bookmarkTitle').value.trim();
+        const note = dialog.querySelector('#bookmarkNote').value.trim();
+
+        if (!title) {
+            this.showError('Введите название закладки');
+            return;
+        }
+
+        const bookmark = await this.createBookmark(
+            this.currentBook.id,
+            position,
+            title,
+            note || null
+        );
+
+        if (bookmark) {
+            dialog.remove();
+        }
+    }
+
+    // Обновляем функцию showPlayer для включения кнопки закладок
+    showPlayer() {
+        if (!this.currentBook) return;
+
+        const existingPlayer = document.querySelector('.audio-player');
+        if (existingPlayer) {
+            existingPlayer.remove();
+        }
+
+        const player = document.createElement('div');
+        player.className = 'audio-player show';
+        player.innerHTML = `
+            <div class="player-content">
+                <div class="player-book-info">
+                    <div class="player-cover" style="background-image: url('${this.currentBook.cover_url || ''}'); background: ${this.currentBook.cover_url ? 'none' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)'}; background-size: cover; background-position: center;"></div>
+                    <div class="player-text">
+                        <div class="player-title">${this.currentBook.title}</div>
+                        <div class="player-author">${this.currentBook.author}</div>
+                    </div>
+                </div>
+                
+                <div class="player-controls">
+                    <button class="player-btn" onclick="audioFlow.skipTime(-30)">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>
+                        </svg>
+                        <span>30</span>
+                    </button>
+                    
+                    <button class="player-play-btn" onclick="audioFlow.togglePlayPause()">
+                        <svg class="play-icon" width="28" height="28" viewBox="0 0 24 24" fill="none">
+                            <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon>
+                        </svg>
+                        <svg class="pause-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" style="display: none;">
+                            <rect x="6" y="4" width="4" height="16" fill="currentColor"></rect>
+                            <rect x="14" y="4" width="4" height="16" fill="currentColor"></rect>
+                        </svg>
+                    </button>
+                    
+                    <button class="player-btn" onclick="audioFlow.skipTime(30)">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="m13 19 7-7-7-7M5 19l7-7-7-7"/>
+                        </svg>
+                        <span>30</span>
+                    </button>
+                    
+                    <button class="player-btn bookmark-btn" onclick="audioFlow.showBookmarkDialog()" title="Добавить закладку">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                    </button>
+                    
+                    <button class="player-btn bookmarks-list-btn" onclick="audioFlow.toggleBookmarksList()" title="Список закладок">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="8" y1="6" x2="21" y2="6"></line>
+                            <line x1="8" y1="12" x2="21" y2="12"></line>
+                            <line x1="8" y1="18" x2="21" y2="18"></line>
+                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="player-progress">
+                    <div class="player-time">
+                        <span class="current-time">0:00</span>
+                        <span class="total-time">${this.formatDuration(this.currentBook.duration_seconds || 0)}</span>
+                    </div>
+                    <div class="progress-bar-container" onclick="audioFlow.seekToPosition(event)">
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Список закладок -->
+                <div class="bookmarks-panel" style="display: none;">
+                    <div class="bookmarks-header">
+                        <h4>Закладки</h4>
+                    </div>
+                    <div class="bookmarks-list">
+                        <!-- Закладки будут загружены динамически -->
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(player);
+        
+        // Загружаем закладки для текущей книги
+        this.loadBookBookmarks(this.currentBook.id);
+    }
+
+    toggleBookmarksList() {
+        const panel = document.querySelector('.bookmarks-panel');
+        const btn = document.querySelector('.bookmarks-list-btn');
+        
+        if (panel) {
+            const isVisible = panel.style.display !== 'none';
+            panel.style.display = isVisible ? 'none' : 'block';
+            btn?.classList.toggle('active', !isVisible);
+            
+            if (!isVisible && this.currentBook) {
+                this.loadBookBookmarks(this.currentBook.id);
+            }
+        }
+    }
 }
 
 // Инициализация приложения

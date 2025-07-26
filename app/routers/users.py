@@ -556,47 +556,56 @@ def update_book_rating(book: Book, db: Session):
     book.rating = float(rating_stats.average) if rating_stats.average else 0.0
     db.commit()
 
-@router.post("/bookmarks/{book_id}", response_model=BookmarkResponse)
+@router.post("/bookmarks", response_model=BookmarkResponse)
 async def create_bookmark(
-    book_id: int,
     bookmark_data: BookmarkCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Создание закладки"""
+    """Создание новой закладки"""
     
-    # Проверяем существование книги
+    # Проверяем что книга существует и активна
     book = db.query(Book).filter(
-        Book.id == book_id,
+        Book.id == bookmark_data.book_id,
         Book.is_active == True
     ).first()
     
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     
+    # Проверяем валидность позиции
+    if bookmark_data.position < 0:
+        raise HTTPException(status_code=400, detail="Position cannot be negative")
+    
+    if book.duration_seconds and bookmark_data.position > book.duration_seconds:
+        raise HTTPException(status_code=400, detail="Position exceeds book duration")
+    
     # Создаем закладку
     bookmark = Bookmark(
         user_id=current_user.id,
-        book_id=book_id,
+        book_id=bookmark_data.book_id,
         position=bookmark_data.position,
-        title=bookmark_data.title
+        title=bookmark_data.title or f"Закладка {int(bookmark_data.position // 60)}:{int(bookmark_data.position % 60):02d}",
+        note=bookmark_data.note
     )
     
     db.add(bookmark)
     db.commit()
     db.refresh(bookmark)
     
+    print(f"User {current_user.id} created bookmark at {bookmark_data.position}s in book {bookmark_data.book_id}")
+    
     return BookmarkResponse.model_validate(bookmark)
 
 @router.get("/bookmarks/{book_id}", response_model=List[BookmarkResponse])
-async def get_bookmarks(
+async def get_book_bookmarks(
     book_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Получение закладок для книги"""
+    """Получение всех закладок пользователя для книги"""
     
-    # Проверяем существование книги
+    # Проверяем что книга существует
     book = db.query(Book).filter(
         Book.id == book_id,
         Book.is_active == True
@@ -605,6 +614,7 @@ async def get_bookmarks(
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     
+    # Получаем закладки, отсортированные по позиции
     bookmarks = db.query(Bookmark).filter(
         Bookmark.user_id == current_user.id,
         Bookmark.book_id == book_id
@@ -612,15 +622,33 @@ async def get_bookmarks(
     
     return [BookmarkResponse.model_validate(bookmark) for bookmark in bookmarks]
 
+@router.get("/bookmarks", response_model=List[BookmarkResponse])
+async def get_all_user_bookmarks(
+    limit: int = Query(50, le=100, description="Количество закладок"),
+    offset: int = Query(0, ge=0, description="Смещение"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Получение всех закладок пользователя"""
+    
+    bookmarks_query = db.query(Bookmark).filter(
+        Bookmark.user_id == current_user.id
+    ).order_by(desc(Bookmark.created_at))
+    
+    bookmarks = bookmarks_query.offset(offset).limit(limit).all()
+    
+    return [BookmarkResponse.model_validate(bookmark) for bookmark in bookmarks]
+
 @router.put("/bookmarks/{bookmark_id}", response_model=BookmarkResponse)
 async def update_bookmark(
     bookmark_id: int,
-    bookmark_update: BookmarkUpdate,
+    bookmark_data: BookmarkUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Обновление закладки"""
     
+    # Ищем закладку пользователя
     bookmark = db.query(Bookmark).filter(
         Bookmark.id == bookmark_id,
         Bookmark.user_id == current_user.id
@@ -629,12 +657,22 @@ async def update_bookmark(
     if not bookmark:
         raise HTTPException(status_code=404, detail="Bookmark not found")
     
-    # Обновляем только переданные поля
-    for field, value in bookmark_update.model_dump(exclude_unset=True).items():
-        setattr(bookmark, field, value)
+    # Обновляем поля
+    if bookmark_data.title is not None:
+        bookmark.title = bookmark_data.title
+    if bookmark_data.note is not None:
+        bookmark.note = bookmark_data.note
+    if bookmark_data.position is not None:
+        if bookmark_data.position < 0:
+            raise HTTPException(status_code=400, detail="Position cannot be negative")
+        bookmark.position = bookmark_data.position
+    
+    bookmark.updated_at = datetime.utcnow()
     
     db.commit()
     db.refresh(bookmark)
+    
+    print(f"User {current_user.id} updated bookmark {bookmark_id}")
     
     return BookmarkResponse.model_validate(bookmark)
 
@@ -646,6 +684,7 @@ async def delete_bookmark(
 ):
     """Удаление закладки"""
     
+    # Ищем закладку пользователя
     bookmark = db.query(Bookmark).filter(
         Bookmark.id == bookmark_id,
         Bookmark.user_id == current_user.id
@@ -657,4 +696,9 @@ async def delete_bookmark(
     db.delete(bookmark)
     db.commit()
     
-    return StatusResponse(status="success", message="Bookmark deleted") 
+    print(f"User {current_user.id} deleted bookmark {bookmark_id}")
+    
+    return StatusResponse(
+        status="success",
+        message="Закладка удалена"
+    ) 

@@ -727,6 +727,300 @@ async def root(request: Request):
         .book-card:active {{
             transform: translateY(-2px);
         }}
+        /* Статус подключения Telegram */
+        .telegram-status {{
+            position: fixed;
+            top: env(safe-area-inset-top, 10px);
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            z-index: 1001;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }}
+
+        .telegram-status.show {{
+            opacity: 1;
+        }}
+
+        .telegram-status.connected {{
+            background: rgba(16, 185, 129, 0.8);
+        }}
+
+        .telegram-status.disconnected {{
+            background: rgba(239, 68, 68, 0.8);
+        }}
+
+        /* Закладки в аудиоплеере */
+        .bookmark-btn {{
+            color: var(--primary) !important;
+        }}
+
+        .bookmark-btn:hover {{
+            background: rgba(99, 102, 241, 0.1) !important;
+        }}
+
+        .bookmarks-list-btn.active {{
+            background: var(--primary) !important;
+            color: white !important;
+        }}
+
+        .bookmarks-panel {{
+            margin-top: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 16px;
+            animation: slideDown 0.3s ease;
+        }}
+
+        .bookmarks-header {{
+            margin-bottom: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }}
+
+        .bookmarks-list {{
+            max-height: 200px;
+            overflow-y: auto;
+        }}
+
+        .bookmark-item {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }}
+
+        .bookmark-item:last-child {{
+            border-bottom: none;
+        }}
+
+        .bookmark-info {{
+            flex: 1;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: background 0.2s ease;
+        }}
+
+        .bookmark-info:hover {{
+            background: rgba(255, 255, 255, 0.1);
+        }}
+
+        .bookmark-time {{
+            font-size: 12px;
+            color: var(--primary);
+            font-weight: 600;
+            margin-bottom: 2px;
+        }}
+
+        .bookmark-title {{
+            font-size: 14px;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }}
+
+        .bookmark-note {{
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-style: italic;
+        }}
+
+        .bookmark-delete-btn {{
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            opacity: 0.7;
+        }}
+
+        .bookmark-delete-btn:hover {{
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            opacity: 1;
+        }}
+
+        /* Диалог создания закладки */
+        .bookmark-dialog-overlay {{
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            animation: fadeIn 0.3s ease;
+        }}
+
+        .bookmark-dialog {{
+            background: var(--card-bg);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.3s ease;
+        }}
+
+        .bookmark-dialog-header {{
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }}
+
+        .bookmark-dialog-header h3 {{
+            margin: 0;
+            font-size: 18px;
+            color: var(--text-primary);
+        }}
+
+        .dialog-close {{
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }}
+
+        .dialog-close:hover {{
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }}
+
+        .bookmark-dialog-content {{
+            padding: 20px;
+        }}
+
+        .bookmark-position {{
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            text-align: center;
+        }}
+
+        .form-group {{
+            margin-bottom: 16px;
+        }}
+
+        .form-group label {{
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }}
+
+        .form-group input,
+        .form-group textarea {{
+            width: 100%;
+            padding: 12px;
+            background: var(--dark-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.3s ease;
+        }}
+
+        .form-group input:focus,
+        .form-group textarea:focus {{
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }}
+
+        .form-group textarea {{
+            resize: vertical;
+            min-height: 60px;
+        }}
+
+        .bookmark-dialog-actions {{
+            padding: 16px 20px 20px;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }}
+
+        .btn {{
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }}
+
+        .btn-secondary {{
+            background: var(--card-bg);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }}
+
+        .btn-secondary:hover {{
+            background: var(--border);
+            color: var(--text-primary);
+        }}
+
+        .btn-primary {{
+            background: var(--primary);
+            color: white;
+        }}
+
+        .btn-primary:hover {{
+            background: var(--primary-dark);
+        }}
+
+        /* Анимации для диалогов */
+        @keyframes fadeIn {{
+            from {{ opacity: 0; }}
+            to {{ opacity: 1; }}
+        }}
+
+        @keyframes slideUp {{
+            from {{
+                opacity: 0;
+                transform: translateY(20px);
+            }}
+            to {{
+                opacity: 1;
+                transform: translateY(0);
+            }}
+        }}
+
+        @keyframes slideDown {{
+            from {{
+                opacity: 0;
+                transform: translateY(-10px);
+            }}
+            to {{
+                opacity: 1;
+                transform: translateY(0);
+            }}
+        }}
+
+        /* Остальные стили... */
     </style>
 </head>
 <body>
