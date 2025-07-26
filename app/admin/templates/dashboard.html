@@ -744,28 +744,71 @@
         async function loadCategories() {
             const token = localStorage.getItem('admin_token');
             
-            const response = await fetch('/api/admin/categories', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            
-            if (response.status === 401) {
-                localStorage.removeItem('admin_token');
-                throw new Error('Токен недействителен при загрузке категорий');
-            }
-            
-            if (response.ok) {
+            try {
+                console.log('📋 Загружаем категории...');
+                const response = await fetch('/api/admin/categories', {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('📋 Статус ответа категорий:', response.status);
+                
+                if (response.status === 401) {
+                    console.log('❌ Токен недействителен при загрузке категорий');
+                    localStorage.removeItem('admin_token');
+                    redirectToLogin();
+                    return;
+                }
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Ошибка загрузки категорий:', response.status, errorText);
+                    throw new Error(`Ошибка загрузки категорий: ${response.status} ${response.statusText}`);
+                }
+                
                 categories = await response.json();
+                console.log('✅ Категории загружены:', categories);
                 
                 // Заполняем селект категорий
                 const select = document.getElementById('categorySelect');
                 if (select) {
                     select.innerHTML = '<option value="">Выберите категорию</option>' +
                         categories.map(cat => `<option value="${cat.id}">${cat.emoji || ''} ${cat.name}</option>`).join('');
+                    console.log('✅ Селект категорий обновлен');
                 }
                 
-                console.log('✅ Загружено категорий:', categories.length);
-            } else {
-                throw new Error(`Ошибка загрузки категорий: ${response.status} ${response.statusText}`);
+            } catch (error) {
+                console.error('❌ Ошибка загрузки категорий:', error);
+                
+                // Попробуем альтернативный эндпоинт
+                try {
+                    console.log('🔄 Пробуем альтернативный эндпоинт /api/categories...');
+                    const altResponse = await fetch('/api/categories', {
+                        headers: { 
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (altResponse.ok) {
+                        categories = await altResponse.json();
+                        console.log('✅ Категории загружены через альтернативный эндпоинт:', categories);
+                        
+                        const select = document.getElementById('categorySelect');
+                        if (select) {
+                            select.innerHTML = '<option value="">Выберите категорию</option>' +
+                                categories.map(cat => `<option value="${cat.id}">${cat.emoji || ''} ${cat.name}</option>`).join('');
+                        }
+                    } else {
+                        console.error('❌ Альтернативный эндпоинт тоже не работает:', altResponse.status);
+                        showNotification('Не удалось загрузить категории. Попробуйте обновить страницу.', 'error');
+                    }
+                } catch (altError) {
+                    console.error('❌ Ошибка альтернативного эндпоинта:', altError);
+                    showNotification('Критическая ошибка загрузки категорий', 'error');
+                }
             }
         }
         

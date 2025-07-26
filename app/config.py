@@ -25,7 +25,11 @@ class Settings(BaseSettings):
         "http://app.booksmood.ru",  # HTTP fallback
         "http://localhost:3000",
         "http://localhost:8000",
-        "http://localhost"
+        "http://localhost",
+        "http://213.171.25.85:8088",  # VPS IP с портом
+        "https://213.171.25.85:8088",  # VPS IP с портом HTTPS
+        "http://213.171.25.85",  # VPS IP без порта
+        "https://213.171.25.85"   # VPS IP без порта HTTPS
     ]
     
     # Files
