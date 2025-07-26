@@ -541,17 +541,104 @@
         let categories = [];
         
         // Инициализация
-        document.addEventListener('DOMContentLoaded', () => {
-            // Проверяем авторизацию
-            if (!localStorage.getItem('admin_token')) {
-                window.location.href = '/admin/login';
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Проверяем URL и делаем быстрое перенаправление если нужно
+            if (!checkUrlAndRedirect()) {
                 return;
             }
             
-            loadDashboardData();
-            loadCategories();
-            initFileUploads();
+            // Показываем индикатор загрузки
+            showLoadingIndicator();
+            
+            // Проверяем и валидируем авторизацию
+            const isAuthenticated = await checkAuthentication();
+            if (!isAuthenticated) {
+                hideLoadingIndicator();
+                redirectToLogin();
+                return;
+            }
+            
+            // Загружаем данные параллельно
+            try {
+                await Promise.all([
+                    loadDashboardData(),
+                    loadCategories(),
+                ]);
+                initFileUploads();
+                hideLoadingIndicator();
+                console.log('✅ Админка загружена успешно - категории доступны для выбора');
+            } catch (error) {
+                console.error('❌ Ошибка загрузки админки:', error);
+                hideLoadingIndicator();
+                showErrorWithRetry('Ошибка загрузки данных админки', error.message);
+            }
         });
+        
+        // Проверка и валидация авторизации
+        async function checkAuthentication() {
+            const token = localStorage.getItem('admin_token');
+            
+            // Нет токена - не авторизован
+            if (!token) {
+                console.log('🔐 Токен отсутствует');
+                return false;
+            }
+            
+            // Проверяем валидность токена через API
+            try {
+                const response = await fetch('/api/admin/dashboard', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.status === 401) {
+                    console.log('🔑 Токен недействителен');
+                    localStorage.removeItem('admin_token');
+                    return false;
+                }
+                
+                if (response.ok) {
+                    console.log('✅ Авторизация успешна');
+                    return true;
+                }
+                
+                console.log('⚠️ Неожиданный статус:', response.status);
+                return false;
+                
+            } catch (error) {
+                console.error('❌ Ошибка проверки авторизации:', error);
+                return false;
+            }
+        }
+        
+        // Перенаправление на страницу логина
+        function redirectToLogin() {
+            console.log('🔄 Перенаправление на страницу логина');
+            window.location.href = '/admin/login';
+        }
+        
+        // Показать индикатор загрузки
+        function showLoadingIndicator() {
+            document.body.style.cursor = 'wait';
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'loading-indicator';
+            loadingDiv.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(255,255,255,0.9); z-index: 9999;
+                display: flex; align-items: center; justify-content: center;
+                font-size: 18px; color: #6366f1;
+            `;
+            loadingDiv.innerHTML = '<div><div class="loading"></div><br>Загрузка админки...</div>';
+            document.body.appendChild(loadingDiv);
+        }
+        
+        // Скрыть индикатор загрузки
+        function hideLoadingIndicator() {
+            document.body.style.cursor = 'default';
+            const loadingDiv = document.getElementById('loading-indicator');
+            if (loadingDiv) {
+                loadingDiv.remove();
+            }
+        }
         
         // Навигация по вкладкам
         function showTab(tab) {
@@ -581,18 +668,18 @@
         
         // Загрузка данных дашборда
         async function loadDashboardData() {
-            try {
-                const response = await fetch('/api/admin/dashboard', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
-                });
-                
-                if (response.status === 401) {
-                    localStorage.removeItem('admin_token');
-                    window.location.href = '/admin/login';
-                    return;
-                }
-                
-                if (response.ok) {
+            const token = localStorage.getItem('admin_token');
+            
+            const response = await fetch('/api/admin/dashboard', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (response.status === 401) {
+                localStorage.removeItem('admin_token');
+                throw new Error('Токен недействителен');
+            }
+            
+            if (response.ok) {
                     const data = await response.json();
                     
                     document.getElementById('totalUsers').textContent = data.stats.total_users;
@@ -615,42 +702,37 @@
                     `).join('');
                     
                     document.getElementById('recentBooks').innerHTML = recentBooksHtml || 'Нет книг';
+                } else {
+                    throw new Error(`Ошибка загрузки дашборда: ${response.status}`);
                 }
-            } catch (error) {
-                console.error('Ошибка загрузки дашборда:', error);
-            }
         }
         
         // Загрузка категорий
         async function loadCategories() {
-            try {
-                const response = await fetch('/api/admin/categories', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
-                });
+            const token = localStorage.getItem('admin_token');
+            
+            const response = await fetch('/api/admin/categories', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (response.status === 401) {
+                localStorage.removeItem('admin_token');
+                throw new Error('Токен недействителен при загрузке категорий');
+            }
+            
+            if (response.ok) {
+                categories = await response.json();
                 
-                if (response.status === 401) {
-                    // Токен недействителен, перенаправляем на логин
-                    localStorage.removeItem('admin_token');
-                    window.location.href = '/admin/login';
-                    return;
-                }
-                
-                if (response.ok) {
-                    categories = await response.json();
-                    
-                    // Заполняем селект категорий
-                    const select = document.getElementById('categorySelect');
+                // Заполняем селект категорий
+                const select = document.getElementById('categorySelect');
+                if (select) {
                     select.innerHTML = '<option value="">Выберите категорию</option>' +
                         categories.map(cat => `<option value="${cat.id}">${cat.emoji || ''} ${cat.name}</option>`).join('');
-                    
-                    console.log('Загружено категорий:', categories.length);
-                } else {
-                    console.error('Ошибка загрузки категорий:', response.status, response.statusText);
-                    showNotification('Ошибка загрузки категорий', 'error');
                 }
-            } catch (error) {
-                console.error('Ошибка загрузки категорий:', error);
-                showNotification('Ошибка сети при загрузке категорий', 'error');
+                
+                console.log('✅ Загружено категорий:', categories.length);
+            } else {
+                throw new Error(`Ошибка загрузки категорий: ${response.status} ${response.statusText}`);
             }
         }
         
@@ -818,7 +900,49 @@
         // Выход из админки
         function logout() {
             localStorage.removeItem('admin_token');
+            console.log('👋 Выход из админки');
             window.location.href = '/admin/login';
+        }
+        
+        // Проверка URL и перенаправление
+        function checkUrlAndRedirect() {
+            const currentPath = window.location.pathname;
+            
+            // Если находимся на дашборде, но не авторизованы
+            if (currentPath === '/admin/dashboard') {
+                const token = localStorage.getItem('admin_token');
+                if (!token) {
+                    console.log('🔄 Прямой переход на дашборд без авторизации - перенаправляем на логин');
+                    window.location.replace('/admin/login');
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        // Retry функция для повторной загрузки
+        function retryLoad() {
+            console.log('🔄 Повторная загрузка данных...');
+            window.location.reload();
+        }
+        
+        // Показать ошибку с кнопкой повтора
+        function showErrorWithRetry(title, message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = `
+                position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                z-index: 10000; max-width: 500px; text-align: center; border: 2px solid #ef4444;
+            `;
+            errorDiv.innerHTML = `
+                <h3 style="color: #ef4444; margin-bottom: 15px;">❌ ${title}</h3>
+                <p style="color: #666; margin-bottom: 20px;">${message}</p>
+                <div>
+                    <button onclick="retryLoad()" style="background: #6366f1; color: white; border: none; padding: 10px 20px; border-radius: 6px; margin-right: 10px; cursor: pointer;">🔄 Повторить</button>
+                    <button onclick="redirectToLogin()" style="background: #6b7280; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer;">🔐 На страницу входа</button>
+                </div>
+            `;
+            document.body.appendChild(errorDiv);
         }
         
         // Функции-заглушки для кнопок
