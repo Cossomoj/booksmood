@@ -37,30 +37,81 @@ class AudioFlowApp {
 
     async authenticateUser() {
         try {
-            // Получаем initData из Telegram WebApp
-            const initData = window.Telegram?.WebApp?.initData || '';
-            
-            if (!initData) {
-                console.warn('No Telegram WebApp data available');
-                return;
+            // Проверяем доступность Telegram WebApp
+            const tg = window.Telegram?.WebApp;
+            let authResult = null;
+
+            if (tg && tg.initData) {
+                console.log('Telegram Web App detected, using real auth');
+                // Реальная авторизация через Telegram
+                const response = await fetch('/api/auth/telegram', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ initData: tg.initData })
+                });
+
+                if (response.ok) {
+                    authResult = await response.json();
+                } else {
+                    const error = await response.json();
+                    console.error('Telegram auth failed:', error);
+                    
+                    // Пробуем тестовую авторизацию в режиме разработки
+                    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                        console.log('Trying test auth for development');
+                        authResult = await this.testAuth();
+                    }
+                }
+            } else {
+                console.log('Telegram Web App not available, using test auth');
+                // Используем тестовую авторизацию для разработки
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                    authResult = await this.testAuth();
+                } else {
+                    console.warn('No Telegram WebApp data and not in development mode');
+                    return;
+                }
             }
 
-            const response = await fetch('/api/auth/telegram', {
+            if (authResult) {
+                this.currentUser = authResult.user;
+                localStorage.setItem('access_token', authResult.access_token);
+                console.log('User authenticated:', this.currentUser);
+                
+                // Уведомляем Telegram о готовности
+                if (tg) {
+                    tg.ready();
+                    tg.MainButton.hide();
+                }
+            }
+        } catch (error) {
+            console.error('Authentication failed:', error);
+        }
+    }
+
+    async testAuth() {
+        """Тестовая авторизация для разработки"""
+        try {
+            const response = await fetch('/api/auth/test', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ initData })
+                }
             });
 
             if (response.ok) {
                 const data = await response.json();
-                this.currentUser = data.user;
-                localStorage.setItem('access_token', data.access_token);
-                console.log('User authenticated:', this.currentUser);
+                console.log('Test auth successful:', data.user);
+                return data;
+            } else {
+                console.error('Test auth failed:', response.status);
+                return null;
             }
         } catch (error) {
-            console.error('Authentication failed:', error);
+            console.error('Test auth error:', error);
+            return null;
         }
     }
 
@@ -93,6 +144,7 @@ class AudioFlowApp {
         }
     }
 
+    // Обновляем метод API вызовов для лучшей обработки ошибок
     async apiCall(url, options = {}) {
         const token = localStorage.getItem('access_token');
         const headers = {
@@ -111,7 +163,25 @@ class AudioFlowApp {
             });
 
             if (response.ok) {
-                return await response.json();
+                const data = await response.json();
+                return data;
+            } else if (response.status === 401) {
+                // Токен истек, пробуем переавторизоваться
+                console.log('Token expired, trying to re-authenticate');
+                localStorage.removeItem('access_token');
+                this.currentUser = null;
+                await this.authenticateUser();
+                
+                // Повторяем запрос с новым токеном
+                if (this.currentUser) {
+                    const newToken = localStorage.getItem('access_token');
+                    headers['Authorization'] = `Bearer ${newToken}`;
+                    const retryResponse = await fetch(url, { ...options, headers });
+                    if (retryResponse.ok) {
+                        return await retryResponse.json();
+                    }
+                }
+                return null;
             } else {
                 console.error('API call failed:', response.status, response.statusText);
                 return null;
@@ -260,26 +330,7 @@ class AudioFlowApp {
             return;
         }
 
-        container.innerHTML = recentBooks.map(book => {
-            const progress = book.user_progress?.current_position || 0;
-            const total = book.duration_seconds || 0;
-            const progressPercent = total > 0 ? Math.round((progress / total) * 100) : 0;
-            const coverStyle = book.cover_url 
-                ? `background-image: url('${book.cover_url}')` 
-                : `background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)`;
-
-            return `
-                <div class="book-card book-card-horizontal" onclick="audioFlow.playBook(${book.id})">
-                    <div class="book-cover" style="${coverStyle}; background-size: cover; background-position: center;">
-                        <div class="book-badge">${progressPercent}%</div>
-                    </div>
-                    <div class="book-info">
-                        <div class="book-title">${book.title}</div>
-                        <div class="book-author">${book.author}</div>
-                    </div>
-                </div>
-            `;
-        }).join('');
+        container.innerHTML = recentBooks.map(book => this.renderBookCard(book, 'horizontal')).join('');
     }
 
     renderNewBooks() {
@@ -295,24 +346,7 @@ class AudioFlowApp {
             return;
         }
 
-        container.innerHTML = newBooks.map(book => {
-            const coverStyle = book.cover_url 
-                ? `background-image: url('${book.cover_url}')` 
-                : `background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)`;
-            const badge = book.is_free ? 'Бесплатно' : 'Премиум';
-
-            return `
-                <div class="book-card" onclick="audioFlow.playBook(${book.id})">
-                    <div class="book-cover" style="${coverStyle}; background-size: cover; background-position: center;">
-                        <div class="book-badge">${badge}</div>
-                    </div>
-                    <div class="book-info">
-                        <div class="book-title">${book.title}</div>
-                        <div class="book-author">${book.author}</div>
-                    </div>
-                </div>
-            `;
-        }).join('');
+        container.innerHTML = newBooks.map(book => this.renderBookCard(book, 'grid')).join('');
     }
 
     initAudioPlayer() {
@@ -786,6 +820,139 @@ class AudioFlowApp {
         } catch (error) {
             console.error('Search failed:', error);
             this.showError('Ошибка поиска');
+        }
+    }
+
+    // Добавляем функции для работы с избранным
+    async toggleFavorite(bookId) {
+        try {
+            // Сначала проверяем текущий статус
+            const statusResponse = await this.apiCall(`/api/user/favorites/${bookId}/status`);
+            
+            if (statusResponse && statusResponse.is_favorite) {
+                // Удаляем из избранного
+                const response = await this.apiCall(`/api/user/favorites/${bookId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response && response.status === 'success') {
+                    this.showNotification('Удалено из избранного', 'success');
+                    this.updateFavoriteButton(bookId, false);
+                    return false;
+                }
+            } else {
+                // Добавляем в избранное
+                const response = await this.apiCall(`/api/user/favorites/${bookId}`, {
+                    method: 'POST'
+                });
+                
+                if (response && response.status === 'success') {
+                    this.showNotification(response.message || 'Добавлено в избранное', 'success');
+                    this.updateFavoriteButton(bookId, true);
+                    return true;
+                } else if (response && response.status === 'already_exists') {
+                    this.showNotification('Книга уже в избранном', 'info');
+                    this.updateFavoriteButton(bookId, true);
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.error('Failed to toggle favorite:', error);
+            this.showError('Ошибка при изменении избранного');
+        }
+        return null;
+    }
+
+    updateFavoriteButton(bookId, isFavorite) {
+        // Обновляем все кнопки избранного для этой книги
+        const favoriteButtons = document.querySelectorAll(`[data-book-id="${bookId}"] .favorite-btn, .favorite-btn[data-book-id="${bookId}"]`);
+        
+        favoriteButtons.forEach(btn => {
+            const icon = btn.querySelector('svg') || btn;
+            if (isFavorite) {
+                btn.classList.add('active');
+                icon.innerHTML = `
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" 
+                          fill="currentColor"/>
+                `;
+                btn.title = 'Удалить из избранного';
+            } else {
+                btn.classList.remove('active');
+                icon.innerHTML = `
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" 
+                          fill="none" stroke="currentColor" stroke-width="2"/>
+                `;
+                btn.title = 'Добавить в избранное';
+            }
+        });
+    }
+
+    async loadUserFavorites() {
+        try {
+            const response = await this.apiCall('/api/user/favorites?limit=20');
+            if (response) {
+                return response;
+            }
+        } catch (error) {
+            console.error('Failed to load favorites:', error);
+        }
+        return [];
+    }
+
+    // Обновляем функцию рендеринга карточек книг для включения кнопки избранного
+    renderBookCard(book, cardType = 'grid') {
+        const progressPercent = book.user_progress ? 
+            Math.round((book.user_progress.current_position / (book.duration_seconds || 1)) * 100) : 0;
+        const isFavorite = book.user_progress?.is_favorite || false;
+        const coverStyle = book.cover_url 
+            ? `background-image: url('${book.cover_url}')` 
+            : `background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)`;
+        
+        const favoriteIcon = isFavorite 
+            ? `<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="currentColor"/>`
+            : `<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="none" stroke="currentColor" stroke-width="2"/>`;
+
+        if (cardType === 'horizontal') {
+            return `
+                <div class="book-card book-card-horizontal" data-book-id="${book.id}">
+                    <div class="book-cover" style="${coverStyle}; background-size: cover; background-position: center;" onclick="audioFlow.playBook(${book.id})">
+                        <div class="book-badge">${progressPercent}%</div>
+                        <button class="favorite-btn ${isFavorite ? 'active' : ''}" 
+                                onclick="event.stopPropagation(); audioFlow.toggleFavorite(${book.id})"
+                                title="${isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}"
+                                style="position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.7); border: none; color: #fbbf24; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                ${favoriteIcon}
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="book-info">
+                        <div class="book-title">${book.title}</div>
+                        <div class="book-author">${book.author}</div>
+                    </div>
+                </div>
+            `;
+        } else {
+            const badge = book.is_free ? 'Бесплатно' : 'Премиум';
+            return `
+                <div class="book-card" data-book-id="${book.id}">
+                    <div class="book-cover" style="${coverStyle}; background-size: cover; background-position: center;" onclick="audioFlow.playBook(${book.id})">
+                        <div class="book-badge">${badge}</div>
+                        <button class="favorite-btn ${isFavorite ? 'active' : ''}" 
+                                onclick="event.stopPropagation(); audioFlow.toggleFavorite(${book.id})"
+                                title="${isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}"
+                                style="position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.7); border: none; color: #fbbf24; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                ${favoriteIcon}
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="book-info">
+                        <div class="book-title">${book.title}</div>
+                        <div class="book-author">${book.author}</div>
+                    </div>
+                </div>
+            `;
         }
     }
 }

@@ -21,11 +21,16 @@ optional_security = HTTPBearer(auto_error=False)
 def validate_telegram_data(init_data: str, bot_token: str) -> Optional[Dict]:
     """Валидация данных от Telegram Web App"""
     try:
+        if not init_data or not bot_token:
+            print("Missing init_data or bot_token")
+            return None
+            
         parsed_data = parse_qs(init_data)
         
         # Извлекаем hash
         hash_value = parsed_data.get('hash', [''])[0]
         if not hash_value:
+            print("No hash found in init_data")
             return None
         
         # Создаем data-check-string
@@ -50,21 +55,46 @@ def validate_telegram_data(init_data: str, bot_token: str) -> Optional[Dict]:
         ).hexdigest()
         
         if calculated_hash != hash_value:
+            print(f"Hash mismatch: calculated={calculated_hash}, received={hash_value}")
             return None
             
-        # Проверяем время
+        # Проверяем время (расширяем до 7 дней для удобства разработки)
         auth_date = int(parsed_data.get('auth_date', ['0'])[0])
-        if time.time() - auth_date > 86400:  # 24 часа
+        current_time = time.time()
+        time_diff = current_time - auth_date
+        
+        if time_diff > 604800:  # 7 дней вместо 24 часов
+            print(f"Data too old: {time_diff} seconds ago")
             return None
             
         # Парсим user data
         user_data_str = parsed_data.get('user', ['{}'])[0]
         user_data = json.loads(user_data_str)
+        
+        # Дополнительные проверки user данных
+        if not user_data.get('id'):
+            print("No user ID in data")
+            return None
+            
+        print(f"Telegram auth successful for user {user_data.get('id')}")
         return user_data
         
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {e}")
+        return None
     except Exception as e:
         print(f"Error validating telegram data: {e}")
         return None
+
+def create_test_user_data() -> Dict:
+    """Создание тестовых данных пользователя для разработки"""
+    return {
+        "id": 12345678,
+        "first_name": "Test",
+        "last_name": "User",
+        "username": "testuser",
+        "language_code": "ru"
+    }
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Создание JWT токена"""

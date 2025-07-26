@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from datetime import datetime
@@ -13,6 +13,27 @@ from ..schemas import (
 from ..models import User, Book, ListeningHistory, Favorite, Rating, Bookmark
 from ..dependencies import get_current_user, get_optional_user
 from ..utils import calculate_progress_percent
+
+def get_user_progress(book: Book, user: User, db: Session):
+    """Получение прогресса пользователя для книги"""
+    # История прослушивания
+    history = db.query(ListeningHistory).filter(
+        ListeningHistory.user_id == user.id,
+        ListeningHistory.book_id == book.id
+    ).first()
+    
+    # Избранное
+    favorite = db.query(Favorite).filter(
+        Favorite.user_id == user.id,
+        Favorite.book_id == book.id
+    ).first()
+    
+    return {
+        "current_position": history.current_position if history else 0,
+        "is_finished": history.is_finished if history else False,
+        "is_favorite": bool(favorite),
+        "last_played": history.last_played if history else None
+    }
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 
@@ -139,7 +160,7 @@ async def update_listening_progress(
         message=f"Progress updated: {progress_percent}%"
     )
 
-@router.post("/favorites/{book_id}", response_model=FavoriteResponse)
+@router.post("/favorites/{book_id}", response_model=StatusResponse)
 async def add_to_favorites(
     book_id: int,
     db: Session = Depends(get_db),
@@ -147,7 +168,7 @@ async def add_to_favorites(
 ):
     """Добавление книги в избранное"""
     
-    # Проверка существования книги
+    # Проверяем что книга существует и активна
     book = db.query(Book).filter(
         Book.id == book_id,
         Book.is_active == True
@@ -156,26 +177,35 @@ async def add_to_favorites(
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     
-    # Проверка, не в избранном ли уже
+    # Проверяем что книга еще не в избранном
     existing = db.query(Favorite).filter(
         Favorite.user_id == current_user.id,
         Favorite.book_id == book_id
     ).first()
     
     if existing:
-        return FavoriteResponse(status="already_added", book_id=book_id)
+        return StatusResponse(
+            status="already_exists",
+            message="Книга уже в избранном"
+        )
     
-    # Добавление в избранное
+    # Добавляем в избранное
     favorite = Favorite(
         user_id=current_user.id,
         book_id=book_id
     )
+    
     db.add(favorite)
     db.commit()
     
-    return FavoriteResponse(status="added", book_id=book_id)
+    print(f"User {current_user.id} added book {book_id} to favorites")
+    
+    return StatusResponse(
+        status="success",
+        message="Книга добавлена в избранное"
+    )
 
-@router.delete("/favorites/{book_id}", response_model=FavoriteResponse)
+@router.delete("/favorites/{book_id}", response_model=StatusResponse)
 async def remove_from_favorites(
     book_id: int,
     db: Session = Depends(get_db),
@@ -183,18 +213,73 @@ async def remove_from_favorites(
 ):
     """Удаление книги из избранного"""
     
+    # Ищем запись в избранном
     favorite = db.query(Favorite).filter(
         Favorite.user_id == current_user.id,
         Favorite.book_id == book_id
     ).first()
     
     if not favorite:
-        raise HTTPException(status_code=404, detail="Book not in favorites")
+        raise HTTPException(
+            status_code=404, 
+            detail="Книга не найдена в избранном"
+        )
     
+    # Удаляем из избранного
     db.delete(favorite)
     db.commit()
     
-    return FavoriteResponse(status="removed", book_id=book_id)
+    print(f"User {current_user.id} removed book {book_id} from favorites")
+    
+    return StatusResponse(
+        status="success",
+        message="Книга удалена из избранного"
+    )
+
+@router.get("/favorites", response_model=List[BookResponse])
+async def get_user_favorites(
+    limit: int = Query(50, le=100, description="Количество книг"),
+    offset: int = Query(0, ge=0, description="Смещение"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Получение списка избранных книг пользователя"""
+    
+    # Получаем избранные книги с join
+    favorites_query = db.query(Book).join(Favorite).filter(
+        Favorite.user_id == current_user.id,
+        Book.is_active == True
+    ).order_by(desc(Favorite.added_at))
+    
+    favorites = favorites_query.offset(offset).limit(limit).all()
+    
+    # Обогащение данных о прогрессе пользователя
+    favorites_response = []
+    for book in favorites:
+        book_dict = BookResponse.model_validate(book).model_dump()
+        book_dict["user_progress"] = get_user_progress(book, current_user, db)
+        favorites_response.append(BookResponse(**book_dict))
+    
+    return favorites_response
+
+@router.get("/favorites/{book_id}/status")
+async def check_favorite_status(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Проверка статуса книги в избранном"""
+    
+    favorite = db.query(Favorite).filter(
+        Favorite.user_id == current_user.id,
+        Favorite.book_id == book_id
+    ).first()
+    
+    return {
+        "book_id": book_id,
+        "is_favorite": bool(favorite),
+        "added_at": favorite.added_at if favorite else None
+    }
 
 @router.post("/history/{book_id}", response_model=StatusResponse)
 async def update_listening_progress(
