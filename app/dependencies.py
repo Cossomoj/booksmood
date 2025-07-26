@@ -15,7 +15,7 @@ get_current_user = get_current_user
 get_current_admin = get_current_admin
 get_optional_user = get_optional_user
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 async def get_user_or_admin(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),

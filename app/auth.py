@@ -15,7 +15,7 @@ from .config import settings
 from .database import get_db
 from .models import User, Admin
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 def validate_telegram_data(init_data: str, bot_token: str) -> Optional[Dict]:
     """Валидация данных от Telegram Web App"""
