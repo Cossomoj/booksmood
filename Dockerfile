@@ -85,6 +85,26 @@ RUN echo 'server {\n\
         return 200 "healthy\\n";\n\
         add_header Content-Type text/plain;\n\
     }\n\
+}\n\
+\n\
+# Админ панель на порту 8088\n\
+server {\n\
+    listen 8088;\n\
+    server_name _;\n\
+    \n\
+    location / {\n\
+        proxy_pass http://localhost:8000;\n\
+        proxy_set_header Host $host;\n\
+        proxy_set_header X-Real-IP $remote_addr;\n\
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n\
+        proxy_set_header X-Forwarded-Proto $scheme;\n\
+    }\n\
+    \n\
+    location /static/ {\n\
+        alias /app/app/static/;\n\
+        expires 30d;\n\
+        add_header Cache-Control "public, immutable";\n\
+    }\n\
 }' > /etc/nginx/sites-available/default
 
 # Создаём скрипт для получения SSL сертификата
@@ -170,7 +190,7 @@ PRODUCTION_URL=https://app.booksmood.ru\n\
 ' > /app/.env
 
 # Открываем порты
-EXPOSE 80 443 8000
+EXPOSE 80 443 8000 8088
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
