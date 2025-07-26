@@ -223,6 +223,16 @@ echo "📋 Проверяем nginx конфигурацию..."\n\
 nginx -t\n\
 if [ $? -eq 0 ]; then\n\
     echo "✅ Nginx конфигурация корректна"\n\
+    echo "🔄 Перезапускаем nginx для применения изменений..."\n\
+    # Пробуем reload, если не работает - запускаем nginx\n\
+    nginx -s reload 2>/dev/null || nginx 2>/dev/null\n\
+    sleep 2\n\
+    # Проверяем что nginx запущен\n\
+    if pgrep nginx > /dev/null; then\n\
+        echo "✅ Nginx успешно запущен"\n\
+    else\n\
+        echo "⚠️  Предупреждение: nginx может быть не запущен"\n\
+    fi\n\
 else\n\
     echo "❌ Ошибка в конфигурации nginx"\n\
 fi\n\
@@ -245,12 +255,12 @@ autostart=true\n\
 autorestart=false\n\
 stdout_logfile=/var/log/ssl_check.log\n\
 stderr_logfile=/var/log/ssl_check_err.log\n\
-priority=50\n\
+priority=10\n\
 startsecs=0\n\
 exitcodes=0,1,2\n\
 \n\
 [program:nginx]\n\
-command=/usr/sbin/nginx -g "daemon off;"\n\
+command=bash -c "sleep 5 && /usr/sbin/nginx -g 'daemon off;'"\n\
 autostart=true\n\
 autorestart=true\n\
 stdout_logfile=/var/log/nginx.log\n\
