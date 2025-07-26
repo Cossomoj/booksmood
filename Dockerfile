@@ -2,9 +2,9 @@ FROM python:3.13-slim
 
 # Метаданные
 LABEL maintainer="BooksMood Team"
-LABEL description="BooksMood AudioFlow - Telegram Mini App для аудиокниг (SSL Version)"
+LABEL description="BooksMood AudioFlow - Telegram Mini App для аудиокниг (Manual SSL)"
 
-# Устанавливаем системные зависимости включая certbot
+# Устанавливаем системные зависимости (убираем certbot)
 RUN apt-get update && apt-get install -y \
     git \
     openssh-client \
@@ -12,9 +12,6 @@ RUN apt-get update && apt-get install -y \
     nginx \
     sqlite3 \
     curl \
-    certbot \
-    python3-certbot-nginx \
-    cron \
     && rm -rf /var/lib/apt/lists/*
 
 # Создаём рабочую директорию
@@ -47,15 +44,14 @@ RUN mkdir -p /app/app/static/uploads
 RUN mkdir -p /app/data
 RUN mkdir -p /var/log
 RUN mkdir -p /var/www/html
-RUN mkdir -p /etc/letsencrypt
-RUN mkdir -p /var/lib/letsencrypt
+RUN mkdir -p /etc/nginx/ssl
 
 # Устанавливаем права
 RUN chmod +x /app/scripts/*.sh 2>/dev/null || true
 RUN chmod 755 /app/app/static/uploads
 RUN chmod 755 /app/data
 
-# Создаём базовую конфигурацию Nginx (HTTP only для начала)
+# Создаём базовую конфигурацию Nginx
 RUN echo 'server {\n\
     listen 80;\n\
     server_name app.booksmood.ru;\n\
@@ -65,13 +61,58 @@ RUN echo 'server {\n\
         root /var/www/html;\n\
     }\n\
     \n\
-    # Остальной трафик\n\
+    # Редирект на HTTPS если сертификат есть\n\
     location / {\n\
+        if (-f /etc/nginx/ssl/fullchain.pem) {\n\
+            return 301 https://$server_name$request_uri;\n\
+        }\n\
         proxy_pass http://localhost:8000;\n\
         proxy_set_header Host $host;\n\
         proxy_set_header X-Real-IP $remote_addr;\n\
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n\
         proxy_set_header X-Forwarded-Proto $scheme;\n\
+    }\n\
+    \n\
+    location /static/ {\n\
+        alias /app/app/static/;\n\
+        expires 30d;\n\
+        add_header Cache-Control "public, immutable";\n\
+    }\n\
+    \n\
+    location /health {\n\
+        access_log off;\n\
+        return 200 "healthy\\n";\n\
+        add_header Content-Type text/plain;\n\
+    }\n\
+}\n\
+\n\
+# HTTPS сервер (будет работать только если есть сертификаты)\n\
+server {\n\
+    listen 443 ssl http2;\n\
+    server_name app.booksmood.ru;\n\
+    \n\
+    # SSL сертификаты (будут подмонтированы из хоста)\n\
+    ssl_certificate /etc/nginx/ssl/fullchain.pem;\n\
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;\n\
+    \n\
+    # SSL настройки\n\
+    ssl_protocols TLSv1.2 TLSv1.3;\n\
+    ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384;\n\
+    ssl_prefer_server_ciphers off;\n\
+    ssl_session_cache shared:SSL:10m;\n\
+    ssl_session_timeout 1d;\n\
+    \n\
+    # Security headers\n\
+    add_header Strict-Transport-Security "max-age=31536000" always;\n\
+    add_header X-Frame-Options DENY;\n\
+    add_header X-Content-Type-Options nosniff;\n\
+    \n\
+    location / {\n\
+        proxy_pass http://localhost:8000;\n\
+        proxy_set_header Host $host;\n\
+        proxy_set_header X-Real-IP $remote_addr;\n\
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n\
+        proxy_set_header X-Forwarded-Proto https;\n\
     }\n\
     \n\
     location /static/ {\n\
@@ -107,26 +148,23 @@ server {\n\
     }\n\
 }' > /etc/nginx/sites-available/default
 
-# Создаём скрипт для получения SSL сертификата
+# Скрипт для проверки и копирования SSL сертификатов
 RUN echo '#!/bin/bash\n\
-echo "🔐 Получение SSL сертификата для app.booksmood.ru..."\n\
+echo "🔐 Проверка SSL сертификатов..."\n\
 \n\
-# Ждем старт nginx\n\
-sleep 10\n\
-\n\
-# Получаем сертификат\n\
-certbot --nginx -d app.booksmood.ru --non-interactive --agree-tos --email admin@booksmood.ru --redirect\n\
-\n\
-if [ $? -eq 0 ]; then\n\
-    echo "✅ SSL сертификат получен успешно!"\n\
-    # Настраиваем автообновление\n\
-    echo "0 12 * * * /usr/bin/certbot renew --quiet" >> /var/spool/cron/crontabs/root\n\
-    service cron start\n\
+if [ -f "/host-ssl/fullchain.pem" ] && [ -f "/host-ssl/privkey.pem" ]; then\n\
+    echo "✅ SSL сертификаты найдены, копируем..."\n\
+    cp /host-ssl/*.pem /etc/nginx/ssl/ 2>/dev/null || true\n\
+    chmod 644 /etc/nginx/ssl/*.pem\n\
+    echo "✅ SSL сертификаты скопированы"\n\
+    echo "🔐 HTTPS будет доступен по адресу: https://app.booksmood.ru"\n\
 else\n\
-    echo "❌ Ошибка получения SSL сертификата"\n\
-    echo "🔄 Продолжаем работу по HTTP"\n\
+    echo "⚠️  SSL сертификаты не найдены в /host-ssl/"\n\
+    echo "🔧 Работаем только по HTTP: http://app.booksmood.ru"\n\
+    echo "💡 Для генерации сертификата запустите на VPS:"\n\
+    echo "   bash /opt/ssl-certs/ssl-generate.sh"\n\
 fi\n\
-' > /app/ssl-setup.sh && chmod +x /app/ssl-setup.sh
+' > /app/check-ssl.sh && chmod +x /app/check-ssl.sh
 
 # Инициализация базы данных при сборке
 RUN cd /app && /venv/bin/python scripts/init_db.py
@@ -138,6 +176,16 @@ logfile=/var/log/supervisord.log\n\
 logfile_maxbytes=50MB\n\
 logfile_backups=10\n\
 loglevel=info\n\
+\n\
+[program:ssl_check]\n\
+command=/app/check-ssl.sh\n\
+autostart=true\n\
+autorestart=false\n\
+stdout_logfile=/var/log/ssl_check.log\n\
+stderr_logfile=/var/log/ssl_check_err.log\n\
+priority=50\n\
+startsecs=0\n\
+exitcodes=0,1,2\n\
 \n\
 [program:nginx]\n\
 command=/usr/sbin/nginx -g "daemon off;"\n\
@@ -160,20 +208,10 @@ priority=200\n\
 startretries=5\n\
 stopasgroup=true\n\
 killasgroup=true\n\
-\n\
-[program:ssl_setup]\n\
-command=/app/ssl-setup.sh\n\
-autostart=true\n\
-autorestart=false\n\
-stdout_logfile=/var/log/ssl_setup.log\n\
-stderr_logfile=/var/log/ssl_setup_err.log\n\
-priority=300\n\
-startsecs=0\n\
-exitcodes=0,1,2\n\
 ' > /etc/supervisor/conf.d/booksmood.conf
 
 # Копируем environment файл по умолчанию
-RUN echo '# BooksMood Docker Environment (SSL)\n\
+RUN echo '# BooksMood Docker Environment (Manual SSL)\n\
 BOT_TOKEN=8045700099:AAGCARHl1gc2sO5cCvoC3LlIHFC5hC04znY\n\
 TELEGRAM_BOT_USERNAME=booksmoodbot\n\
 SECRET_KEY=booksmood-docker-secret-key-2024-change-in-production\n\
@@ -193,7 +231,7 @@ PRODUCTION_URL=https://app.booksmood.ru\n\
 EXPOSE 80 443 8000 8088
 
 # Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost/health || exit 1
 
 # Запускаем supervisor

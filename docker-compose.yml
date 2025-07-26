@@ -13,7 +13,7 @@ services:
       - booksmood_data:/app/data
       - booksmood_uploads:/app/app/static/uploads
       - booksmood_logs:/var/log
-      - booksmood_ssl:/etc/letsencrypt    # SSL сертификаты
+      - /opt/ssl-certs:/host-ssl:ro    # SSL сертификаты с хоста (только чтение)
     environment:
       - BOT_TOKEN=8045700099:AAGCARHl1gc2sO5cCvoC3LlIHFC5hC04znY
       - TELEGRAM_BOT_USERNAME=booksmoodbot
@@ -59,7 +59,4 @@ volumes:
     driver: local
   booksmood_logs:
     name: booksmood_logs
-    driver: local
-  booksmood_ssl:
-    name: booksmood_ssl_certs
     driver: local 
