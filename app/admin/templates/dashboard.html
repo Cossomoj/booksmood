@@ -761,8 +761,11 @@
                                 <td>${book.plays_count}</td>
                                 <td>
                                     <div class="book-actions">
-                                        <button class="btn btn-secondary" onclick="editBook(${book.id})">Редактировать</button>
-                                        <button class="btn btn-danger" onclick="deleteBook(${book.id})">Удалить</button>
+                                        <button class="btn btn-secondary" onclick="editBook(${book.id})" title="Редактировать книгу">✏️</button>
+                                        <button class="btn ${book.is_active ? 'btn-secondary' : 'btn-primary'}" onclick="toggleBookStatus(${book.id})" title="${book.is_active ? 'Деактивировать' : 'Активировать'} книгу">
+                                            ${book.is_active ? '🚫' : '✅'}
+                                        </button>
+                                        <button class="btn btn-danger" onclick="deleteBook(${book.id})" title="Удалить книгу">🗑️</button>
                                     </div>
                                 </td>
                             </tr>
@@ -793,14 +796,149 @@
             window.location.href = '/admin/login';
         }
         
-        // Функции-заглушки для кнопок
-        function editBook(id) {
-            showNotification('Функция редактирования в разработке', 'error');
+        // Редактирование книги
+        async function editBook(id) {
+            const book = books.find(b => b.id === id);
+            if (!book) return;
+            
+            // Создаем модальное окно редактирования
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.5); display: flex; align-items: center;
+                justify-content: center; z-index: 1000;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; padding: 30px; border-radius: 12px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto;">
+                    <h3 style="margin-bottom: 20px;">Редактировать книгу</h3>
+                    <form id="editBookForm">
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Название:</label>
+                            <input type="text" name="title" value="${book.title}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Автор:</label>
+                            <input type="text" name="author" value="${book.author}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Описание:</label>
+                            <textarea name="description" rows="3" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">${book.description || ''}</textarea>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Категория:</label>
+                            <select name="category_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="">Без категории</option>
+                                ${categories.map(cat => `
+                                    <option value="${cat.id}" ${book.category?.id === cat.id ? 'selected' : ''}>
+                                        ${cat.emoji || ''} ${cat.name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" name="is_free" ${book.is_free ? 'checked' : ''}>
+                                Бесплатная книга
+                            </label>
+                        </div>
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button type="button" onclick="this.closest('.modal').remove()" style="padding: 10px 20px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;">Отмена</button>
+                            <button type="submit" style="padding: 10px 20px; border: none; background: #6366f1; color: white; border-radius: 4px; cursor: pointer;">Сохранить</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            modal.className = 'modal';
+            document.body.appendChild(modal);
+            
+            // Обработчик формы
+            modal.querySelector('#editBookForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const formData = new FormData(e.target);
+                const data = {
+                    title: formData.get('title'),
+                    author: formData.get('author'),
+                    description: formData.get('description') || null,
+                    category_id: formData.get('category_id') ? parseInt(formData.get('category_id')) : null,
+                    is_free: formData.has('is_free')
+                };
+                
+                try {
+                    const response = await fetch(`/api/admin/books/${id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                        },
+                        body: JSON.stringify(data)
+                    });
+                    
+                    if (response.ok) {
+                        showNotification('Книга успешно обновлена!', 'success');
+                        modal.remove();
+                        loadBooks(); // Перезагружаем список
+                    } else {
+                        const error = await response.json();
+                        showNotification(error.detail || 'Ошибка обновления', 'error');
+                    }
+                } catch (error) {
+                    showNotification('Ошибка сети', 'error');
+                }
+            });
         }
         
-        function deleteBook(id) {
-            if (confirm('Удалить книгу?')) {
-                showNotification('Функция удаления в разработке', 'error');
+        // Удаление книги
+        async function deleteBook(id) {
+            const book = books.find(b => b.id === id);
+            if (!book) return;
+            
+            if (!confirm(`Удалить книгу "${book.title}"?\n\nЭто действие нельзя отменить. Будут удалены:\n- Аудиофайл\n- Обложка\n- История прослушивания\n- Избранное пользователей`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/books/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    showNotification('Книга успешно удалена!', 'success');
+                    loadBooks(); // Перезагружаем список
+                } else {
+                    const error = await response.json();
+                    showNotification(error.detail || 'Ошибка удаления', 'error');
+                }
+            } catch (error) {
+                showNotification('Ошибка сети', 'error');
+            }
+        }
+        
+        // Переключение статуса книги
+        async function toggleBookStatus(id) {
+            try {
+                const response = await fetch(`/api/admin/books/${id}/toggle-status`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const updatedBook = await response.json();
+                    showNotification(`Книга ${updatedBook.is_active ? 'активирована' : 'деактивирована'}!`, 'success');
+                    loadBooks(); // Перезагружаем список
+                } else {
+                    const error = await response.json();
+                    showNotification(error.detail || 'Ошибка изменения статуса', 'error');
+                }
+            } catch (error) {
+                showNotification('Ошибка сети', 'error');
             }
         }
         

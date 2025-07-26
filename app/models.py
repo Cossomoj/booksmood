@@ -18,6 +18,8 @@ class User(Base):
     # Relationships
     history = relationship("ListeningHistory", back_populates="user")
     favorites = relationship("Favorite", back_populates="user")
+    ratings = relationship("Rating", back_populates="user")
+    bookmarks = relationship("Bookmark", back_populates="user")
 
 class Admin(Base):
     __tablename__ = "admins"
@@ -68,6 +70,8 @@ class Book(Base):
     category = relationship("Category", back_populates="books")
     history = relationship("ListeningHistory", back_populates="book")
     favorites = relationship("Favorite", back_populates="book")
+    ratings = relationship("Rating", back_populates="book")
+    bookmarks = relationship("Bookmark", back_populates="book")
     added_by_admin = relationship("Admin", back_populates="added_books")
 
 class ListeningHistory(Base):
@@ -89,6 +93,20 @@ class ListeningHistory(Base):
     # Constraints
     __table_args__ = (UniqueConstraint('user_id', 'book_id'),)
 
+class Bookmark(Base):
+    __tablename__ = "bookmarks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
+    position = Column(Integer, nullable=False)  # Позиция в секундах
+    title = Column(String(200), nullable=True)  # Название закладки
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="bookmarks")
+    book = relationship("Book", back_populates="bookmarks")
+
 class Favorite(Base):
     __tablename__ = "favorites"
     
@@ -100,6 +118,24 @@ class Favorite(Base):
     # Relationships
     user = relationship("User", back_populates="favorites")
     book = relationship("Book", back_populates="favorites")
+    
+    # Constraints
+    __table_args__ = (UniqueConstraint('user_id', 'book_id'),)
+
+class Rating(Base):
+    __tablename__ = "ratings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
+    rating = Column(Integer, nullable=False)  # от 1 до 5
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="ratings")
+    book = relationship("Book", back_populates="ratings")
     
     # Constraints
     __table_args__ = (UniqueConstraint('user_id', 'book_id'),) 

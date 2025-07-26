@@ -170,4 +170,52 @@ class StatusResponse(BaseModel):
 
 class FavoriteResponse(BaseModel):
     status: str
-    book_id: int 
+    book_id: int
+
+# Rating Schemas
+class RatingBase(BaseModel):
+    rating: int = Field(..., ge=1, le=5, description="Рейтинг от 1 до 5")
+    comment: Optional[str] = None
+
+class RatingCreate(RatingBase):
+    pass
+
+class RatingUpdate(BaseModel):
+    rating: Optional[int] = Field(None, ge=1, le=5)
+    comment: Optional[str] = None
+
+class RatingResponse(RatingBase):
+    id: int
+    user_id: int
+    book_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+class BookRating(BaseModel):
+    average_rating: float
+    total_ratings: int
+    user_rating: Optional[int] = None
+
+# Bookmark Schemas
+class BookmarkBase(BaseModel):
+    position: int = Field(..., ge=0, description="Позиция в секундах")
+    title: Optional[str] = Field(None, max_length=200, description="Название закладки")
+
+class BookmarkCreate(BookmarkBase):
+    pass
+
+class BookmarkUpdate(BaseModel):
+    position: Optional[int] = Field(None, ge=0)
+    title: Optional[str] = Field(None, max_length=200)
+
+class BookmarkResponse(BookmarkBase):
+    id: int
+    user_id: int
+    book_id: int
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True 

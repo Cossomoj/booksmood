@@ -320,4 +320,89 @@ async def get_admin_books(
     offset = (page - 1) * limit
     books = db.query(Book).offset(offset).limit(limit).all()
     
-    return [BookResponse.model_validate(book) for book in books] 
+    return [BookResponse.model_validate(book) for book in books]
+
+@router.put("/books/{book_id}", response_model=BookResponse)
+async def update_book(
+    book_id: int,
+    book_update: BookUpdate,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(get_current_admin)
+):
+    """Обновление информации о книге"""
+    
+    book = db.query(Book).filter(Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    # Обновляем только переданные поля
+    for field, value in book_update.model_dump(exclude_unset=True).items():
+        setattr(book, field, value)
+    
+    db.commit()
+    db.refresh(book)
+    
+    return BookResponse.model_validate(book)
+
+@router.delete("/books/{book_id}", response_model=StatusResponse)
+async def delete_book(
+    book_id: int,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(get_current_admin)
+):
+    """Удаление книги"""
+    
+    book = db.query(Book).filter(Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    # Удаляем файлы если они есть
+    if book.audio_file_url:
+        try:
+            import os
+            from ..config import settings
+            audio_path = book.audio_file_url.replace("/static/uploads/", "")
+            full_path = os.path.join(settings.upload_dir, audio_path)
+            if os.path.exists(full_path):
+                os.remove(full_path)
+        except Exception as e:
+            print(f"Warning: Could not delete audio file: {e}")
+    
+    if book.cover_url:
+        try:
+            import os
+            from ..config import settings
+            cover_path = book.cover_url.replace("/static/uploads/", "")
+            full_path = os.path.join(settings.upload_dir, cover_path)
+            if os.path.exists(full_path):
+                os.remove(full_path)
+        except Exception as e:
+            print(f"Warning: Could not delete cover file: {e}")
+    
+    # Удаляем связанные записи
+    db.query(ListeningHistory).filter(ListeningHistory.book_id == book_id).delete()
+    db.query(Favorite).filter(Favorite.book_id == book_id).delete()
+    
+    # Удаляем книгу
+    db.delete(book)
+    db.commit()
+    
+    return StatusResponse(status="success", message="Book deleted successfully")
+
+@router.post("/books/{book_id}/toggle-status", response_model=BookResponse)
+async def toggle_book_status(
+    book_id: int,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(get_current_admin)
+):
+    """Переключение статуса активности книги"""
+    
+    book = db.query(Book).filter(Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    book.is_active = not book.is_active
+    db.commit()
+    db.refresh(book)
+    
+    return BookResponse.model_validate(book) 

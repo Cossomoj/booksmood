@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, desc, asc
 from typing import List, Optional
+from enum import Enum
 
 from ..database import get_db
 from ..schemas import BookResponse, BooksListResponse, SearchResponse, UserProgress
@@ -9,6 +10,15 @@ from ..models import Book, Category, ListeningHistory, Favorite, User
 from ..dependencies import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/api/books", tags=["books"])
+
+class SortBy(str, Enum):
+    newest = "newest"
+    oldest = "oldest"
+    popular = "popular"
+    rating = "rating"
+    alphabetical = "alphabetical"
+    duration_short = "duration_short"
+    duration_long = "duration_long"
 
 def get_user_progress(book: Book, user: Optional[User], db: Session) -> Optional[UserProgress]:
     """Получение прогресса пользователя для книги"""
@@ -37,17 +47,55 @@ def get_user_progress(book: Book, user: Optional[User], db: Session) -> Optional
 @router.get("", response_model=BooksListResponse)
 async def get_books(
     category_id: Optional[int] = Query(None, description="ID категории"),
+    is_free: Optional[bool] = Query(None, description="Только бесплатные книги"),
+    min_rating: Optional[float] = Query(None, ge=0, le=5, description="Минимальный рейтинг"),
+    min_duration: Optional[int] = Query(None, ge=0, description="Минимальная длительность в секундах"),
+    max_duration: Optional[int] = Query(None, ge=0, description="Максимальная длительность в секундах"),
+    author: Optional[str] = Query(None, description="Поиск по автору"),
+    sort_by: SortBy = Query(SortBy.newest, description="Сортировка"),
     limit: int = Query(20, le=100, description="Количество книг"),
     offset: int = Query(0, ge=0, description="Смещение"),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_optional_user)
 ):
-    """Получение списка книг"""
+    """Получение списка книг с расширенными фильтрами"""
     
     query = db.query(Book).filter(Book.is_active == True)
     
+    # Применяем фильтры
     if category_id:
         query = query.filter(Book.category_id == category_id)
+    
+    if is_free is not None:
+        query = query.filter(Book.is_free == is_free)
+    
+    if min_rating is not None:
+        query = query.filter(Book.rating >= min_rating)
+    
+    if min_duration is not None:
+        query = query.filter(Book.duration_seconds >= min_duration)
+    
+    if max_duration is not None:
+        query = query.filter(Book.duration_seconds <= max_duration)
+    
+    if author:
+        query = query.filter(Book.author.ilike(f"%{author}%"))
+    
+    # Применяем сортировку
+    if sort_by == SortBy.newest:
+        query = query.order_by(desc(Book.created_at))
+    elif sort_by == SortBy.oldest:
+        query = query.order_by(asc(Book.created_at))
+    elif sort_by == SortBy.popular:
+        query = query.order_by(desc(Book.plays_count))
+    elif sort_by == SortBy.rating:
+        query = query.order_by(desc(Book.rating))
+    elif sort_by == SortBy.alphabetical:
+        query = query.order_by(asc(Book.title))
+    elif sort_by == SortBy.duration_short:
+        query = query.order_by(asc(Book.duration_seconds))
+    elif sort_by == SortBy.duration_long:
+        query = query.order_by(desc(Book.duration_seconds))
     
     total = query.count()
     books = query.offset(offset).limit(limit).all()

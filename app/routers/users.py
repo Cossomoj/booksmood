@@ -6,9 +6,10 @@ from datetime import datetime
 from ..database import get_db
 from ..schemas import (
     UserLibrary, HistoryUpdate, StatusResponse, FavoriteResponse,
-    HistoryResponse, BookResponse, UserStats
+    HistoryResponse, BookResponse, UserStats, RatingCreate, RatingUpdate,
+    RatingResponse, BookRating, BookmarkCreate, BookmarkUpdate, BookmarkResponse
 )
-from ..models import User, Book, ListeningHistory, Favorite
+from ..models import User, Book, ListeningHistory, Favorite, Rating, Bookmark
 from ..dependencies import get_current_user
 from ..utils import calculate_progress_percent
 
@@ -337,4 +338,237 @@ async def mark_book_finished(
     
     db.commit()
     
-    return StatusResponse(status="success", message="Book marked as finished") 
+    return StatusResponse(status="success", message="Book marked as finished")
+
+@router.post("/ratings/{book_id}", response_model=RatingResponse)
+async def rate_book(
+    book_id: int,
+    rating_data: RatingCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Оценить книгу"""
+    
+    # Проверяем существование книги
+    book = db.query(Book).filter(
+        Book.id == book_id,
+        Book.is_active == True
+    ).first()
+    
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    # Ищем существующий рейтинг
+    existing_rating = db.query(Rating).filter(
+        Rating.user_id == current_user.id,
+        Rating.book_id == book_id
+    ).first()
+    
+    if existing_rating:
+        # Обновляем существующий рейтинг
+        existing_rating.rating = rating_data.rating
+        existing_rating.comment = rating_data.comment
+        existing_rating.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(existing_rating)
+        
+        # Обновляем средний рейтинг книги
+        update_book_rating(book, db)
+        
+        return RatingResponse.model_validate(existing_rating)
+    else:
+        # Создаем новый рейтинг
+        new_rating = Rating(
+            user_id=current_user.id,
+            book_id=book_id,
+            rating=rating_data.rating,
+            comment=rating_data.comment
+        )
+        db.add(new_rating)
+        db.commit()
+        db.refresh(new_rating)
+        
+        # Обновляем средний рейтинг книги
+        update_book_rating(book, db)
+        
+        return RatingResponse.model_validate(new_rating)
+
+@router.get("/ratings/{book_id}", response_model=BookRating)
+async def get_book_rating(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user)
+):
+    """Получение рейтинга книги"""
+    
+    # Проверяем существование книги
+    book = db.query(Book).filter(
+        Book.id == book_id,
+        Book.is_active == True
+    ).first()
+    
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    # Вычисляем средний рейтинг
+    rating_stats = db.query(
+        func.avg(Rating.rating).label('average'),
+        func.count(Rating.id).label('total')
+    ).filter(Rating.book_id == book_id).first()
+    
+    average_rating = float(rating_stats.average) if rating_stats.average else 0.0
+    total_ratings = rating_stats.total or 0
+    
+    # Получаем рейтинг текущего пользователя
+    user_rating = None
+    if current_user:
+        user_rating_obj = db.query(Rating).filter(
+            Rating.user_id == current_user.id,
+            Rating.book_id == book_id
+        ).first()
+        user_rating = user_rating_obj.rating if user_rating_obj else None
+    
+    return BookRating(
+        average_rating=round(average_rating, 1),
+        total_ratings=total_ratings,
+        user_rating=user_rating
+    )
+
+@router.delete("/ratings/{book_id}", response_model=StatusResponse)
+async def delete_rating(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Удалить свой рейтинг книги"""
+    
+    rating = db.query(Rating).filter(
+        Rating.user_id == current_user.id,
+        Rating.book_id == book_id
+    ).first()
+    
+    if not rating:
+        raise HTTPException(status_code=404, detail="Rating not found")
+    
+    db.delete(rating)
+    
+    # Обновляем средний рейтинг книги
+    book = db.query(Book).filter(Book.id == book_id).first()
+    if book:
+        update_book_rating(book, db)
+    
+    db.commit()
+    
+    return StatusResponse(status="success", message="Rating deleted")
+
+def update_book_rating(book: Book, db: Session):
+    """Обновление среднего рейтинга книги"""
+    rating_stats = db.query(
+        func.avg(Rating.rating).label('average')
+    ).filter(Rating.book_id == book.id).first()
+    
+    book.rating = float(rating_stats.average) if rating_stats.average else 0.0
+    db.commit()
+
+@router.post("/bookmarks/{book_id}", response_model=BookmarkResponse)
+async def create_bookmark(
+    book_id: int,
+    bookmark_data: BookmarkCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Создание закладки"""
+    
+    # Проверяем существование книги
+    book = db.query(Book).filter(
+        Book.id == book_id,
+        Book.is_active == True
+    ).first()
+    
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    # Создаем закладку
+    bookmark = Bookmark(
+        user_id=current_user.id,
+        book_id=book_id,
+        position=bookmark_data.position,
+        title=bookmark_data.title
+    )
+    
+    db.add(bookmark)
+    db.commit()
+    db.refresh(bookmark)
+    
+    return BookmarkResponse.model_validate(bookmark)
+
+@router.get("/bookmarks/{book_id}", response_model=List[BookmarkResponse])
+async def get_bookmarks(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Получение закладок для книги"""
+    
+    # Проверяем существование книги
+    book = db.query(Book).filter(
+        Book.id == book_id,
+        Book.is_active == True
+    ).first()
+    
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    bookmarks = db.query(Bookmark).filter(
+        Bookmark.user_id == current_user.id,
+        Bookmark.book_id == book_id
+    ).order_by(Bookmark.position).all()
+    
+    return [BookmarkResponse.model_validate(bookmark) for bookmark in bookmarks]
+
+@router.put("/bookmarks/{bookmark_id}", response_model=BookmarkResponse)
+async def update_bookmark(
+    bookmark_id: int,
+    bookmark_update: BookmarkUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Обновление закладки"""
+    
+    bookmark = db.query(Bookmark).filter(
+        Bookmark.id == bookmark_id,
+        Bookmark.user_id == current_user.id
+    ).first()
+    
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    
+    # Обновляем только переданные поля
+    for field, value in bookmark_update.model_dump(exclude_unset=True).items():
+        setattr(bookmark, field, value)
+    
+    db.commit()
+    db.refresh(bookmark)
+    
+    return BookmarkResponse.model_validate(bookmark)
+
+@router.delete("/bookmarks/{bookmark_id}", response_model=StatusResponse)
+async def delete_bookmark(
+    bookmark_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Удаление закладки"""
+    
+    bookmark = db.query(Bookmark).filter(
+        Bookmark.id == bookmark_id,
+        Bookmark.user_id == current_user.id
+    ).first()
+    
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    
+    db.delete(bookmark)
+    db.commit()
+    
+    return StatusResponse(status="success", message="Bookmark deleted") 

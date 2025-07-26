@@ -6,6 +6,8 @@ class AudioFlowApp {
         this.books = [];
         this.categories = [];
         this.progressUpdateTimer = null;
+        this.playbackRate = 1.0;
+        this.bookmarks = [];
         
         this.init();
     }
@@ -360,6 +362,20 @@ class AudioFlowApp {
                         </svg>
                         +30
                     </button>
+                    <button class="player-btn" onclick="audioFlow.togglePlaybackRate()" title="Скорость воспроизведения">
+                        <span class="playback-rate">${this.playbackRate}x</span>
+                    </button>
+                    <button class="player-btn" onclick="audioFlow.addBookmark()" title="Добавить закладку">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
+                        </svg>
+                    </button>
+                    <button class="player-btn" onclick="audioFlow.showBookmarks()" title="Закладки">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                        </svg>
+                    </button>
                 </div>
                 <div class="player-progress">
                     <div class="player-time">
@@ -496,6 +512,149 @@ class AudioFlowApp {
         notification.textContent = message;
         document.body.appendChild(notification);
 
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+
+    togglePlaybackRate() {
+        // Переключение скорости воспроизведения: 0.75x, 1x, 1.25x, 1.5x, 2x
+        const rates = [0.75, 1.0, 1.25, 1.5, 2.0];
+        const currentIndex = rates.indexOf(this.playbackRate);
+        const nextIndex = (currentIndex + 1) % rates.length;
+        
+        this.playbackRate = rates[nextIndex];
+        if (this.audioPlayer) {
+            this.audioPlayer.playbackRate = this.playbackRate;
+        }
+        
+        // Обновляем отображение скорости
+        const rateBtn = document.querySelector('.playback-rate');
+        if (rateBtn) {
+            rateBtn.textContent = this.playbackRate + 'x';
+        }
+        
+        // Сохраняем в localStorage
+        localStorage.setItem('playbackRate', this.playbackRate.toString());
+    }
+
+    async addBookmark() {
+        if (!this.currentBook || !this.audioPlayer) return;
+        
+        const position = Math.floor(this.audioPlayer.currentTime);
+        const title = prompt('Название закладки:', `Глава ${Math.floor(position / 600) + 1}`);
+        
+        if (title === null) return; // Пользователь отменил
+        
+        try {
+            const response = await this.apiCall(`/api/user/bookmarks/${this.currentBook.id}`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    position: position,
+                    title: title || `Закладка ${this.formatDuration(position)}`
+                })
+            });
+            
+            if (response) {
+                this.showNotification('Закладка добавлена!', 'success');
+                this.loadBookmarks();
+            }
+        } catch (error) {
+            console.error('Failed to add bookmark:', error);
+            this.showError('Не удалось добавить закладку');
+        }
+    }
+
+    async loadBookmarks() {
+        if (!this.currentBook) return;
+        
+        try {
+            const response = await this.apiCall(`/api/user/bookmarks/${this.currentBook.id}`);
+            if (response) {
+                this.bookmarks = response;
+            }
+        } catch (error) {
+            console.error('Failed to load bookmarks:', error);
+        }
+    }
+
+    showBookmarks() {
+        if (!this.currentBook || this.bookmarks.length === 0) {
+            this.showError('Нет закладок для этой книги');
+            return;
+        }
+        
+        // Создаем модальное окно с закладками
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8); display: flex; align-items: center;
+            justify-content: center; z-index: 1001;
+        `;
+        
+        modal.innerHTML = `
+            <div style="background: var(--card-bg); padding: 20px; border-radius: 12px; width: 90%; max-width: 400px; max-height: 70vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="color: var(--text-primary); margin: 0;">Закладки</h3>
+                    <button onclick="this.closest('div').remove()" style="background: none; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer;">&times;</button>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    ${this.bookmarks.map(bookmark => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--border); border-radius: 8px;">
+                            <div onclick="audioFlow.seekToBookmark(${bookmark.position})" style="cursor: pointer; flex: 1;">
+                                <div style="color: var(--text-primary); font-weight: 500;">${bookmark.title}</div>
+                                <div style="color: var(--text-secondary); font-size: 12px;">${this.formatDuration(bookmark.position)}</div>
+                            </div>
+                            <button onclick="audioFlow.deleteBookmark(${bookmark.id})" style="background: var(--accent); border: none; color: white; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">Удалить</button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+    }
+
+    seekToBookmark(position) {
+        if (this.audioPlayer) {
+            this.audioPlayer.currentTime = position;
+            // Закрываем модальное окно
+            document.querySelector('[style*="rgba(0,0,0,0.8)"]')?.remove();
+        }
+    }
+
+    async deleteBookmark(bookmarkId) {
+        try {
+            const response = await this.apiCall(`/api/user/bookmarks/${bookmarkId}`, {
+                method: 'DELETE'
+            });
+            
+            if (response) {
+                this.showNotification('Закладка удалена', 'success');
+                this.loadBookmarks();
+                // Закрываем модальное окно и показываем обновленный список
+                document.querySelector('[style*="rgba(0,0,0,0.8)"]')?.remove();
+                setTimeout(() => this.showBookmarks(), 100);
+            }
+        } catch (error) {
+            console.error('Failed to delete bookmark:', error);
+            this.showError('Не удалось удалить закладку');
+        }
+    }
+
+    showNotification(message, type = 'success') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed; top: 20px; right: 20px; z-index: 9999;
+            padding: 12px 20px; border-radius: 8px; color: white;
+            background: ${type === 'success' ? '#10b981' : '#ef4444'};
+            animation: slideIn 0.3s ease;
+        `;
+        
+        document.body.appendChild(notification);
+        
         setTimeout(() => {
             notification.remove();
         }, 3000);
