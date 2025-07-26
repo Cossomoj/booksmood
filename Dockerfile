@@ -241,6 +241,9 @@ fi\n\
 # Инициализация базы данных при сборке
 RUN cd /app && /venv/bin/python scripts/init_db.py
 
+# Делаем скрипт демо-данных исполняемым
+RUN chmod +x /app/scripts/setup_demo.py
+
 # Создаём конфигурацию supervisor
 RUN echo '[supervisord]\n\
 nodaemon=true\n\
