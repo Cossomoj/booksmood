@@ -1238,6 +1238,172 @@ class AudioFlowApp {
             }
         }
     }
+
+    // Функции для работы с рейтингами
+    async rateBook(bookId, rating, review = null) {
+        try {
+            const ratingData = {
+                book_id: bookId,
+                rating: rating,
+                review: review
+            };
+
+            const response = await this.apiCall('/api/user/ratings', {
+                method: 'POST',
+                body: JSON.stringify(ratingData)
+            });
+
+            if (response) {
+                this.showNotification(`Оценка ${rating}/5 сохранена`, 'success');
+                await this.loadBookRating(bookId);
+                return response;
+            }
+        } catch (error) {
+            console.error('Failed to rate book:', error);
+            this.showError('Не удалось сохранить оценку');
+        }
+        return null;
+    }
+
+    async loadBookRating(bookId) {
+        try {
+            const response = await this.apiCall(`/api/user/ratings/${bookId}`);
+            return response; // Может быть null если нет рейтинга
+        } catch (error) {
+            console.error('Failed to load user rating:', error);
+        }
+        return null;
+    }
+
+    async loadBookRatings(bookId) {
+        try {
+            const response = await this.apiCall(`/api/books/${bookId}/ratings`);
+            if (response) {
+                return response;
+            }
+        } catch (error) {
+            console.error('Failed to load book ratings:', error);
+        }
+        return null;
+    }
+
+    showRatingDialog(bookId) {
+        if (!this.currentUser) {
+            this.showError('Войдите в систему чтобы оценить книгу');
+            return;
+        }
+
+        const dialog = document.createElement('div');
+        dialog.className = 'rating-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="rating-dialog">
+                <div class="rating-dialog-header">
+                    <h3>Оценить книгу</h3>
+                    <button class="dialog-close" onclick="this.parentElement.parentElement.parentElement.remove()">×</button>
+                </div>
+                <div class="rating-dialog-content">
+                    <div class="rating-stars-container">
+                        <div class="rating-stars" data-book-id="${bookId}">
+                            ${[1, 2, 3, 4, 5].map(star => 
+                                `<span class="star" data-rating="${star}" onclick="audioFlow.selectRating(${star})">⭐</span>`
+                            ).join('')}
+                        </div>
+                        <div class="rating-text">Нажмите на звезду</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="ratingReview">Отзыв (необязательно):</label>
+                        <textarea id="ratingReview" placeholder="Поделитесь впечатлениями о книге..." maxlength="1000" rows="4"></textarea>
+                    </div>
+                </div>
+                <div class="rating-dialog-actions">
+                    <button class="btn btn-secondary" onclick="this.closest('.rating-dialog-overlay').remove()">
+                        Отмена
+                    </button>
+                    <button class="btn btn-primary" id="saveRatingBtn" disabled onclick="audioFlow.saveRatingFromDialog(${bookId})">
+                        Сохранить
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(dialog);
+        
+        // Загружаем существующий рейтинг если есть
+        this.loadBookRating(bookId).then(existingRating => {
+            if (existingRating) {
+                this.selectRating(existingRating.rating);
+                const reviewTextarea = dialog.querySelector('#ratingReview');
+                if (reviewTextarea && existingRating.review) {
+                    reviewTextarea.value = existingRating.review;
+                }
+            }
+        });
+    }
+
+    selectRating(rating) {
+        this.selectedRating = rating;
+        
+        // Обновляем визуальное отображение звезд
+        const stars = document.querySelectorAll('.rating-stars .star');
+        const ratingText = document.querySelector('.rating-text');
+        const saveBtn = document.querySelector('#saveRatingBtn');
+        
+        stars.forEach((star, index) => {
+            if (index < rating) {
+                star.style.opacity = '1';
+                star.style.transform = 'scale(1.1)';
+            } else {
+                star.style.opacity = '0.3';
+                star.style.transform = 'scale(1)';
+            }
+        });
+        
+        const ratingTexts = ['', 'Ужасно', 'Плохо', 'Нормально', 'Хорошо', 'Отлично'];
+        ratingText.textContent = `${rating}/5 - ${ratingTexts[rating]}`;
+        
+        if (saveBtn) {
+            saveBtn.disabled = false;
+        }
+    }
+
+    async saveRatingFromDialog(bookId) {
+        const dialog = document.querySelector('.rating-dialog-overlay');
+        const review = dialog.querySelector('#ratingReview').value.trim();
+
+        if (!this.selectedRating) {
+            this.showError('Выберите оценку');
+            return;
+        }
+
+        const rating = await this.rateBook(
+            bookId,
+            this.selectedRating,
+            review || null
+        );
+
+        if (rating) {
+            dialog.remove();
+            this.selectedRating = null;
+            // Обновляем отображение рейтинга в UI
+            this.updateBookRatingUI(bookId, rating);
+        }
+    }
+
+    updateBookRatingUI(bookId, rating) {
+        // Обновляем кнопки рейтинга для книги
+        const ratingButtons = document.querySelectorAll(`[data-book-id="${bookId}"] .rating-btn, .rating-btn[data-book-id="${bookId}"]`);
+        
+        ratingButtons.forEach(btn => {
+            btn.classList.add('rated');
+            btn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+                <span>${rating.rating}</span>
+            `;
+            btn.title = `Ваша оценка: ${rating.rating}/5`;
+        });
+    }
 }
 
 // Инициализация приложения

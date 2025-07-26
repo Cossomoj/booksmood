@@ -13,6 +13,7 @@ from ..database import get_db
 from ..schemas import BookResponse, BooksListResponse, SearchResponse, UserProgress
 from ..models import Book, Category, ListeningHistory, Favorite, User
 from ..dependencies import get_current_user, get_optional_user
+from ..models import Rating
 
 router = APIRouter(prefix="/api/books", tags=["books"])
 
@@ -247,3 +248,68 @@ async def stream_audio(
     }
     
     return StreamingResponse(iterfile(file_path), headers=headers) 
+
+@router.get("/{book_id}/ratings")
+async def get_book_ratings(
+    book_id: int,
+    limit: int = Query(10, le=50, description="Количество рейтингов"),
+    offset: int = Query(0, ge=0, description="Смещение"),
+    db: Session = Depends(get_db)
+):
+    """Получение рейтингов книги"""
+    
+    # Проверяем что книга существует
+    book = db.query(Book).filter(
+        Book.id == book_id,
+        Book.is_active == True
+    ).first()
+    
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    # Получаем рейтинги с информацией о пользователях
+    ratings_query = db.query(Rating).join(User).filter(
+        Rating.book_id == book_id
+    ).order_by(desc(Rating.created_at))
+    
+    ratings = ratings_query.offset(offset).limit(limit).all()
+    
+    # Статистика рейтингов
+    from sqlalchemy import func, case
+    rating_stats = db.query(
+        func.count(Rating.id).label('total_ratings'),
+        func.avg(Rating.rating).label('average_rating'),
+        func.sum(case((Rating.rating == 5, 1), else_=0)).label('five_star'),
+        func.sum(case((Rating.rating == 4, 1), else_=0)).label('four_star'),
+        func.sum(case((Rating.rating == 3, 1), else_=0)).label('three_star'),
+        func.sum(case((Rating.rating == 2, 1), else_=0)).label('two_star'),
+        func.sum(case((Rating.rating == 1, 1), else_=0)).label('one_star')
+    ).filter(Rating.book_id == book_id).first()
+    
+    return {
+        "book_id": book_id,
+        "statistics": {
+            "total_ratings": rating_stats.total_ratings or 0,
+            "average_rating": round(float(rating_stats.average_rating or 0), 2),
+            "distribution": {
+                "5": rating_stats.five_star or 0,
+                "4": rating_stats.four_star or 0,
+                "3": rating_stats.three_star or 0,
+                "2": rating_stats.two_star or 0,
+                "1": rating_stats.one_star or 0
+            }
+        },
+        "ratings": [
+            {
+                "id": rating.id,
+                "rating": rating.rating,
+                "review": rating.review,
+                "created_at": rating.created_at,
+                "user": {
+                    "first_name": rating.user.first_name,
+                    "username": rating.user.username
+                }
+            }
+            for rating in ratings
+        ]
+    } 

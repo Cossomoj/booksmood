@@ -204,8 +204,11 @@ class BookmarkBase(BaseModel):
     position: int = Field(..., ge=0, description="Позиция в секундах")
     title: Optional[str] = Field(None, max_length=200, description="Название закладки")
 
-class BookmarkCreate(BookmarkBase):
-    pass
+class BookmarkCreate(BaseModel):
+    book_id: int
+    position: float  # Позиция в секундах
+    title: Optional[str] = None
+    note: Optional[str] = None
 
 class BookmarkUpdate(BaseModel):
     position: Optional[int] = Field(None, ge=0)

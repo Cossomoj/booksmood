@@ -1020,6 +1020,111 @@ async def root(request: Request):
             }}
         }}
 
+        /* Рейтинги */
+        .rating-btn {{
+            color: #fbbf24 !important;
+        }}
+
+        .rating-btn.rated {{
+            background: rgba(251, 191, 36, 0.2) !important;
+            color: #fbbf24 !important;
+        }}
+
+        .rating-btn:hover {{
+            background: rgba(251, 191, 36, 0.1) !important;
+        }}
+
+        .book-actions {{
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }}
+
+        .book-card:hover .book-actions {{
+            opacity: 1;
+        }}
+
+        /* Диалог рейтинга */
+        .rating-dialog-overlay {{
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            animation: fadeIn 0.3s ease;
+        }}
+
+        .rating-dialog {{
+            background: var(--card-bg);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.3s ease;
+        }}
+
+        .rating-dialog-header {{
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }}
+
+        .rating-dialog-header h3 {{
+            margin: 0;
+            font-size: 18px;
+            color: var(--text-primary);
+        }}
+
+        .rating-dialog-content {{
+            padding: 20px;
+        }}
+
+        .rating-stars-container {{
+            text-align: center;
+            margin-bottom: 20px;
+        }}
+
+        .rating-stars {{
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }}
+
+        .rating-stars .star {{
+            font-size: 32px;
+            cursor: pointer;
+            opacity: 0.3;
+            transition: all 0.2s ease;
+            user-select: none;
+        }}
+
+        .rating-stars .star:hover {{
+            opacity: 0.8;
+            transform: scale(1.1);
+        }}
+
+        .rating-text {{
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+        }}
+
+        .rating-dialog-actions {{
+            padding: 16px 20px 20px;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }}
+
         /* Остальные стили... */
     </style>
 </head>

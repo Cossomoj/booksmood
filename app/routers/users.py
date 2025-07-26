@@ -426,68 +426,71 @@ async def mark_book_finished(
     
     return StatusResponse(status="success", message="Book marked as finished")
 
-@router.post("/ratings/{book_id}", response_model=RatingResponse)
-async def rate_book(
-    book_id: int,
+@router.post("/ratings", response_model=RatingResponse)
+async def create_or_update_rating(
     rating_data: RatingCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Оценить книгу"""
+    """Создание или обновление рейтинга книги"""
     
-    # Проверяем существование книги
+    # Проверяем что книга существует и активна
     book = db.query(Book).filter(
-        Book.id == book_id,
+        Book.id == rating_data.book_id,
         Book.is_active == True
     ).first()
     
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     
+    # Валидация рейтинга
+    if rating_data.rating < 1 or rating_data.rating > 5:
+        raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
+    
     # Ищем существующий рейтинг
     existing_rating = db.query(Rating).filter(
         Rating.user_id == current_user.id,
-        Rating.book_id == book_id
+        Rating.book_id == rating_data.book_id
     ).first()
     
     if existing_rating:
         # Обновляем существующий рейтинг
         existing_rating.rating = rating_data.rating
-        existing_rating.comment = rating_data.comment
+        existing_rating.review = rating_data.review
         existing_rating.updated_at = datetime.utcnow()
+        
         db.commit()
         db.refresh(existing_rating)
         
-        # Обновляем средний рейтинг книги
-        update_book_rating(book, db)
+        print(f"User {current_user.id} updated rating for book {rating_data.book_id}: {rating_data.rating}/5")
         
         return RatingResponse.model_validate(existing_rating)
     else:
         # Создаем новый рейтинг
         new_rating = Rating(
             user_id=current_user.id,
-            book_id=book_id,
+            book_id=rating_data.book_id,
             rating=rating_data.rating,
-            comment=rating_data.comment
+            review=rating_data.review
         )
+        
         db.add(new_rating)
         db.commit()
         db.refresh(new_rating)
         
-        # Обновляем средний рейтинг книги
-        update_book_rating(book, db)
+        print(f"User {current_user.id} created rating for book {rating_data.book_id}: {rating_data.rating}/5")
         
         return RatingResponse.model_validate(new_rating)
 
-@router.get("/ratings/{book_id}", response_model=BookRating)
-async def get_book_rating(
+@router.get("/ratings/{book_id}", response_model=Optional[RatingResponse])
+async def get_user_rating(
     book_id: int,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_user)
+    current_user: User = Depends(get_current_user)
 ):
-    """Получение рейтинга книги"""
+    """Получение рейтинга пользователя для книги"""
     
-    # Проверяем существование книги
+    # Проверяем что книга существует
     book = db.query(Book).filter(
         Book.id == book_id,
         Book.is_active == True
@@ -496,29 +499,33 @@ async def get_book_rating(
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     
-    # Вычисляем средний рейтинг
-    rating_stats = db.query(
-        func.avg(Rating.rating).label('average'),
-        func.count(Rating.id).label('total')
-    ).filter(Rating.book_id == book_id).first()
+    # Получаем рейтинг пользователя
+    rating = db.query(Rating).filter(
+        Rating.user_id == current_user.id,
+        Rating.book_id == book_id
+    ).first()
     
-    average_rating = float(rating_stats.average) if rating_stats.average else 0.0
-    total_ratings = rating_stats.total or 0
+    if rating:
+        return RatingResponse.model_validate(rating)
+    else:
+        return None
+
+@router.get("/ratings", response_model=List[RatingResponse])
+async def get_user_ratings(
+    limit: int = Query(50, le=100, description="Количество рейтингов"),
+    offset: int = Query(0, ge=0, description="Смещение"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Получение всех рейтингов пользователя"""
     
-    # Получаем рейтинг текущего пользователя
-    user_rating = None
-    if current_user:
-        user_rating_obj = db.query(Rating).filter(
-            Rating.user_id == current_user.id,
-            Rating.book_id == book_id
-        ).first()
-        user_rating = user_rating_obj.rating if user_rating_obj else None
+    ratings_query = db.query(Rating).filter(
+        Rating.user_id == current_user.id
+    ).order_by(desc(Rating.created_at))
     
-    return BookRating(
-        average_rating=round(average_rating, 1),
-        total_ratings=total_ratings,
-        user_rating=user_rating
-    )
+    ratings = ratings_query.offset(offset).limit(limit).all()
+    
+    return [RatingResponse.model_validate(rating) for rating in ratings]
 
 @router.delete("/ratings/{book_id}", response_model=StatusResponse)
 async def delete_rating(
@@ -526,8 +533,9 @@ async def delete_rating(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Удалить свой рейтинг книги"""
+    """Удаление рейтинга книги"""
     
+    # Ищем рейтинг пользователя
     rating = db.query(Rating).filter(
         Rating.user_id == current_user.id,
         Rating.book_id == book_id
@@ -537,15 +545,14 @@ async def delete_rating(
         raise HTTPException(status_code=404, detail="Rating not found")
     
     db.delete(rating)
-    
-    # Обновляем средний рейтинг книги
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if book:
-        update_book_rating(book, db)
-    
     db.commit()
     
-    return StatusResponse(status="success", message="Rating deleted")
+    print(f"User {current_user.id} deleted rating for book {book_id}")
+    
+    return StatusResponse(
+        status="success",
+        message="Рейтинг удален"
+    )
 
 def update_book_rating(book: Book, db: Session):
     """Обновление среднего рейтинга книги"""
