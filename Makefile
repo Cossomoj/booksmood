@@ -108,11 +108,18 @@ restore: ## Восстановить базу данных (restore DB=backup_fi
 
 # Обновление
 update: ## Обновить из Git и перезапустить
-	@echo "${BLUE}📥 Обновление из Git...${NC}"
-	git pull origin master
+	@echo "${BLUE}📥 Обновление из Git (develop ветка)...${NC}"
+	git pull origin develop
 	docker-compose -f $(COMPOSE_FILE) build --no-cache
 	docker-compose -f $(COMPOSE_FILE) up -d
 	@echo "${GREEN}✅ Обновление завершено${NC}"
+
+update-force: ## Принудительное обновление (пересборка без кэша)
+	@echo "${BLUE}🔄 Принудительное обновление из develop...${NC}"
+	docker-compose -f $(COMPOSE_FILE) down
+	docker-compose -f $(COMPOSE_FILE) build --no-cache --pull
+	docker-compose -f $(COMPOSE_FILE) up -d
+	@echo "${GREEN}✅ Принудительное обновление завершено${NC}"
 
 # Информация
 info: ## Показать информацию о системе
