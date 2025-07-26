@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>AudioFlow Admin - Dashboard</title>
     <style>
         * {
@@ -386,12 +389,42 @@
     </style>
 </head>
 <body>
+    <!-- Блокировка случайной загрузки audioflow.js в админке -->
+    <script>
+        // Блокируем загрузку audioflow.js в админке
+        if (window.AudioFlowApp) {
+            console.warn('⚠️ AudioFlowApp обнаружен в админке - блокируем инициализацию');
+            delete window.AudioFlowApp;
+        }
+        
+        // Принудительная очистка кеша при необходимости
+        if (localStorage.getItem('admin_force_refresh') === 'true') {
+            localStorage.removeItem('admin_force_refresh');
+            window.location.reload(true);
+        }
+        
+        // Функция принудительного обновления
+        function forceRefresh() {
+            // Очищаем кеш и перезагружаем
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    names.forEach(name => caches.delete(name));
+                });
+            }
+            localStorage.setItem('admin_force_refresh', 'true');
+            window.location.reload(true);
+        }
+        
+        console.log('🔐 Админ панель инициализирована (audioflow.js заблокирован)');
+    </script>
+    
     <header class="admin-header">
         <div class="header-content">
             <div class="logo">
                 🎧 AudioFlow Admin
             </div>
             <nav class="admin-nav">
+                <a href="#" onclick="forceRefresh()" title="Принудительное обновление">🔄 Обновить</a>
                 <a href="https://app.booksmood.ru" target="_blank">🌐 Открыть сайт</a>
                 <a href="#" onclick="logout()">🚪 Выход</a>
             </nav>

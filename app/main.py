@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,7 +13,7 @@ from .utils import ensure_directory_exists
 
 # Создание таблиц БД
 Base.metadata.create_all(bind=engine)
-
+    
 # Создание необходимых директорий
 ensure_directory_exists(settings.upload_dir)
 ensure_directory_exists(os.path.join(settings.upload_dir, "covers"))
@@ -26,6 +26,33 @@ app = FastAPI(
     version="1.0.0",
     debug=settings.debug
 )
+
+# Middleware для отключения кеширования админских страниц
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    # Блокируем загрузку audioflow.js для админских запросов
+    if (request.url.path == '/static/audioflow.js' and 
+        request.headers.get('referer') and 
+        '/admin' in request.headers.get('referer')):
+        return Response(
+            content="// AudioFlow.js заблокирован в админке\nconsole.log('AudioFlow.js заблокирован в админке');",
+            media_type="application/javascript",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
+    
+    response = await call_next(request)
+    
+    # Отключаем кеширование для админских страниц
+    if request.url.path.startswith('/admin'):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    
+    return response
 
 # Настройка CORS
 app.add_middleware(
