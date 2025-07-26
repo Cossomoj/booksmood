@@ -260,12 +260,12 @@ startsecs=0\n\
 exitcodes=0,1,2\n\
 \n\
 [program:nginx]\n\
-command=bash -c "sleep 5 && /usr/sbin/nginx -g 'daemon off;'"\n\
+command=/usr/sbin/nginx -g "daemon off;"\n\
 autostart=true\n\
 autorestart=true\n\
 stdout_logfile=/var/log/nginx.log\n\
 stderr_logfile=/var/log/nginx_err.log\n\
-priority=100\n\
+priority=50\n\
 \n\
 [program:booksmood_api]\n\
 command=/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2\n\
