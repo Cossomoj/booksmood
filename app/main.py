@@ -30,20 +30,6 @@ app = FastAPI(
 # Middleware для отключения кеширования админских страниц
 @app.middleware("http")
 async def add_no_cache_headers(request: Request, call_next):
-    # Блокируем загрузку audioflow.js для админских запросов
-    if (request.url.path == '/static/audioflow.js' and 
-        request.headers.get('referer') and 
-        '/admin' in request.headers.get('referer')):
-        return Response(
-            content="// AudioFlow.js заблокирован в админке\nconsole.log('AudioFlow.js заблокирован в админке');",
-            media_type="application/javascript",
-            headers={
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Pragma": "no-cache",
-                "Expires": "0"
-            }
-        )
-    
     response = await call_next(request)
     
     # Отключаем кеширование для админских страниц

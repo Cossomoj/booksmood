@@ -781,33 +781,7 @@
                 
             } catch (error) {
                 console.error('❌ Ошибка загрузки категорий:', error);
-                
-                // Попробуем альтернативный эндпоинт
-                try {
-                    console.log('🔄 Пробуем альтернативный эндпоинт /api/categories...');
-                    const altResponse = await fetch('/api/categories', {
-                        headers: { 
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (altResponse.ok) {
-                        categories = await altResponse.json();
-                        console.log('✅ Категории загружены через альтернативный эндпоинт:', categories);
-                        
-                        const select = document.getElementById('categorySelect');
-                        if (select) {
-                            select.innerHTML = '<option value="">Выберите категорию</option>' +
-                                categories.map(cat => `<option value="${cat.id}">${cat.emoji || ''} ${cat.name}</option>`).join('');
-                        }
-                    } else {
-                        console.error('❌ Альтернативный эндпоинт тоже не работает:', altResponse.status);
-                        showNotification('Не удалось загрузить категории. Попробуйте обновить страницу.', 'error');
-                    }
-                } catch (altError) {
-                    console.error('❌ Ошибка альтернативного эндпоинта:', altError);
-                    showNotification('Критическая ошибка загрузки категорий', 'error');
+                showNotification('Не удалось загрузить категории. Проверьте подключение к серверу.', 'error');
                 }
             }
         }
