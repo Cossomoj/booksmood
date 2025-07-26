@@ -8,7 +8,7 @@ AudioFlow - это современное Telegram Mini App для прослу�
 **🌍 URL**: https://app.booksmood.ru  
 **⚙️ Админ**: https://app.booksmood.ru/admin/login
 
-👉 **Полные инструкции по развертыванию**: [PRODUCTION.md](PRODUCTION.md)
+👉 **Полные инструкции по развертыванию**: [SSL-MANUAL.md](SSL-MANUAL.md)
 
 ## 🐳 Быстрый запуск с Docker
 
@@ -23,7 +23,7 @@ sudo docker-compose up --build -d
 
 **Готово!** Доступно на http://localhost
 
-📋 **Подробнее**: [QUICKSTART-DOCKER.md](QUICKSTART-DOCKER.md) | [DOCKER.md](DOCKER.md)
+📋 **Подробнее**: [QUICKSTART-DOCKER.md](QUICKSTART-DOCKER.md) | [SSL-MANUAL.md](SSL-MANUAL.md)
 
 ## ✨ Особенности
 
