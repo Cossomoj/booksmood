@@ -1,8 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, desc, asc
 from typing import List, Optional
 from enum import Enum
+import re
+
+from fastapi.responses import StreamingResponse
+import os
+from ..config import settings
 
 from ..database import get_db
 from ..schemas import BookResponse, BooksListResponse, SearchResponse, UserProgress
@@ -114,28 +119,6 @@ async def get_books(
         offset=offset
     )
 
-@router.get("/{book_id}", response_model=BookResponse)
-async def get_book(
-    book_id: int,
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_user)
-):
-    """Получение детальной информации о книге"""
-    
-    book = db.query(Book).filter(
-        Book.id == book_id,
-        Book.is_active == True
-    ).first()
-    
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-    
-    # Обогащение данных о прогрессе пользователя
-    book_dict = BookResponse.model_validate(book).model_dump()
-    book_dict["user_progress"] = get_user_progress(book, current_user, db)
-    
-    return BookResponse(**book_dict)
-
 @router.get("/search", response_model=SearchResponse)
 async def search_books(
     q: str = Query(..., min_length=2, description="Поисковый запрос"),
@@ -167,4 +150,100 @@ async def search_books(
         books=books_response,
         query=q,
         total=len(books_response)
-    ) 
+    )
+
+@router.get("/{book_id}", response_model=BookResponse)
+async def get_book(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user)
+):
+    """Получение детальной информации о книге"""
+    
+    book = db.query(Book).filter(
+        Book.id == book_id,
+        Book.is_active == True
+    ).first()
+    
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    # Обогащение данных о прогрессе пользователя
+    book_dict = BookResponse.model_validate(book).model_dump()
+    book_dict["user_progress"] = get_user_progress(book, current_user, db)
+    
+    return BookResponse(**book_dict) 
+
+@router.get("/{book_id}/audio")
+async def stream_audio(
+    book_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user)
+):
+    """Потоковая передача аудиофайла книги с поддержкой Range requests"""
+    
+    book = db.query(Book).filter(
+        Book.id == book_id,
+        Book.is_active == True
+    ).first()
+    
+    if not book or not book.audio_file_url:
+        raise HTTPException(status_code=404, detail="Audio file not found")
+    
+    # Получаем путь к файлу
+    audio_path = book.audio_file_url.replace("/static/uploads/", "")
+    file_path = os.path.join(settings.upload_dir, audio_path)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Audio file not found on disk")
+    
+    # Получаем размер файла
+    file_size = os.path.getsize(file_path)
+    
+    # Обрабатываем Range заголовок для потокового воспроизведения
+    range_header = request.headers.get("range")
+    if range_header:
+        range_match = re.match(r"bytes=(\d+)-(\d*)", range_header)
+        if range_match:
+            start = int(range_match.group(1))
+            end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
+            
+            def iterfile(file_path: str, start: int, end: int, chunk_size: int = 8192):
+                with open(file_path, "rb") as f:
+                    f.seek(start)
+                    remaining = end - start + 1
+                    while remaining > 0:
+                        chunk = f.read(min(chunk_size, remaining))
+                        if not chunk:
+                            break
+                        remaining -= len(chunk)
+                        yield chunk
+            
+            content_length = end - start + 1
+            headers = {
+                "Content-Range": f"bytes {start}-{end}/{file_size}",
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(content_length),
+                "Content-Type": "audio/mpeg"
+            }
+            
+            return StreamingResponse(
+                iterfile(file_path, start, end),
+                status_code=206,
+                headers=headers
+            )
+    
+    # Обычная передача файла
+    def iterfile(file_path: str, chunk_size: int = 8192):
+        with open(file_path, "rb") as f:
+            while chunk := f.read(chunk_size):
+                yield chunk
+    
+    headers = {
+        "Content-Length": str(file_size),
+        "Content-Type": "audio/mpeg",
+        "Accept-Ranges": "bytes"
+    }
+    
+    return StreamingResponse(iterfile(file_path), headers=headers) 

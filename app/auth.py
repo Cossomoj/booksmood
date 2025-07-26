@@ -16,6 +16,7 @@ from .database import get_db
 from .models import User, Admin
 
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 def validate_telegram_data(init_data: str, bot_token: str) -> Optional[Dict]:
     """Валидация данных от Telegram Web App"""
@@ -139,7 +140,7 @@ async def get_current_admin(
         raise credentials_exception
 
 async def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
     db: Session = Depends(get_db)
 ) -> Optional[User]:
     """Получение пользователя из токена (опционально)"""

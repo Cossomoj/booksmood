@@ -126,14 +126,14 @@ class AudioFlowApp {
         const container = document.querySelector('.categories');
         if (!container) return;
 
-        container.innerHTML = `
-            <div class="category-chip active" data-category-id="">Все</div>
-            ${this.categories.map(category => `
-                <div class="category-chip" data-category-id="${category.id}">
-                    ${category.emoji || ''} ${category.name}
-                </div>
-            `).join('')}
-        `;
+        const allChip = `<div class="category-chip active" data-category-id="">Все</div>`;
+        const categoryChips = this.categories.map(category => `
+            <div class="category-chip" data-category-id="${category.id}">
+                ${category.emoji || '📁'} ${category.name} ${category.books_count > 0 ? `(${category.books_count})` : ''}
+            </div>
+        `).join('');
+
+        container.innerHTML = allChip + categoryChips;
 
         // Добавляем обработчики событий
         container.querySelectorAll('.category-chip').forEach(chip => {
@@ -142,7 +142,21 @@ class AudioFlowApp {
                 chip.classList.add('active');
                 
                 const categoryId = chip.dataset.categoryId || null;
+                const categoryName = categoryId ? chip.textContent.split('(')[0].trim() : 'Все книги';
+                
                 this.loadBooks(categoryId);
+                
+                // Обновляем заголовок секции
+                const popularTitle = document.querySelector('.section-title');
+                if (popularTitle) {
+                    popularTitle.textContent = categoryName;
+                }
+                
+                // Очищаем поиск
+                const searchInput = document.querySelector('.search-input');
+                if (searchInput) {
+                    searchInput.value = '';
+                }
             });
         });
     }
@@ -154,7 +168,28 @@ class AudioFlowApp {
     }
 
     renderFeaturedBook() {
-        if (this.books.length === 0) return;
+        if (this.books.length === 0) {
+            // Показываем плейсхолдер если нет книг
+            const container = document.querySelector('.featured-card');
+            if (container) {
+                container.innerHTML = `
+                    <div class="featured-cover" style="background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 48px;">📚</div>
+                    <div class="featured-content">
+                        <h3 class="featured-title">Добро пожаловать в AudioFlow</h3>
+                        <p class="featured-author">Загрузите первую книгу через админ панель</p>
+                        <div class="featured-stats">
+                            <div class="stat-item">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                </svg>
+                                <span>Библиотека пуста</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            return;
+        }
         
         const featured = this.books[0];
         const container = document.querySelector('.featured-card');
@@ -229,10 +264,13 @@ class AudioFlowApp {
             const progress = book.user_progress?.current_position || 0;
             const total = book.duration_seconds || 0;
             const progressPercent = total > 0 ? Math.round((progress / total) * 100) : 0;
+            const coverStyle = book.cover_url 
+                ? `background-image: url('${book.cover_url}')` 
+                : `background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)`;
 
             return `
                 <div class="book-card book-card-horizontal" onclick="audioFlow.playBook(${book.id})">
-                    <div class="book-cover" style="background-image: url('${book.cover_url || ''}')">
+                    <div class="book-cover" style="${coverStyle}; background-size: cover; background-position: center;">
                         <div class="book-badge">${progressPercent}%</div>
                     </div>
                     <div class="book-info">
@@ -252,17 +290,29 @@ class AudioFlowApp {
             .filter(book => !book.user_progress?.current_position)
             .slice(0, 6);
 
-        container.innerHTML = newBooks.map(book => `
-            <div class="book-card" onclick="audioFlow.playBook(${book.id})">
-                <div class="book-cover" style="background-image: url('${book.cover_url || ''}')">
-                    <div class="book-badge">NEW</div>
+        if (newBooks.length === 0) {
+            container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 40px; grid-column: 1 / -1;">Нет доступных книг</p>';
+            return;
+        }
+
+        container.innerHTML = newBooks.map(book => {
+            const coverStyle = book.cover_url 
+                ? `background-image: url('${book.cover_url}')` 
+                : `background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)`;
+            const badge = book.is_free ? 'Бесплатно' : 'Премиум';
+
+            return `
+                <div class="book-card" onclick="audioFlow.playBook(${book.id})">
+                    <div class="book-cover" style="${coverStyle}; background-size: cover; background-position: center;">
+                        <div class="book-badge">${badge}</div>
+                    </div>
+                    <div class="book-info">
+                        <div class="book-title">${book.title}</div>
+                        <div class="book-author">${book.author}</div>
+                    </div>
                 </div>
-                <div class="book-info">
-                    <div class="book-title">${book.title}</div>
-                    <div class="book-author">${book.author}</div>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     initAudioPlayer() {
@@ -293,20 +343,33 @@ class AudioFlowApp {
             // Получаем информацию о книге
             const book = this.books.find(b => b.id === bookId);
             if (!book) {
-                console.error('Book not found:', bookId);
-                return;
+                // Пытаемся получить информацию о книге из API
+                const bookData = await this.apiCall(`/api/books/${bookId}`);
+                if (!bookData) {
+                    console.error('Book not found:', bookId);
+                    this.showError('Книга не найдена');
+                    return;
+                }
+                this.currentBook = bookData;
+            } else {
+                this.currentBook = book;
             }
 
-            // Получаем прогресс пользователя
-            const progress = await this.apiCall(`/api/user/history/${bookId}`);
+            // Получаем прогресс пользователя если авторизован
+            let progress = { current_position: 0, total_duration: this.currentBook.duration_seconds };
+            try {
+                const progressData = await this.apiCall(`/api/user/history/${bookId}`);
+                if (progressData) {
+                    progress = progressData;
+                }
+            } catch (error) {
+                console.log('No user progress available (not authenticated)');
+            }
             
-            this.currentBook = {
-                ...book,
-                progress: progress || { current_position: 0, total_duration: book.duration_seconds }
-            };
+            this.currentBook.progress = progress;
 
-            // Загружаем аудио
-            this.audioPlayer.src = book.audio_file_url;
+            // Загружаем аудио через новый API
+            this.audioPlayer.src = `/api/books/${bookId}/audio`;
             this.audioPlayer.currentTime = this.currentBook.progress.current_position;
 
             // Показываем плеер
@@ -315,10 +378,10 @@ class AudioFlowApp {
             // Автовоспроизведение
             await this.audioPlayer.play();
             
-            console.log('Playing book:', book.title);
+            console.log('Playing book:', this.currentBook.title);
         } catch (error) {
             console.error('Failed to play book:', error);
-            this.showError('Не удалось воспроизвести книгу');
+            this.showError('Не удалось воспроизвести книгу: ' + error.message);
         }
     }
 
@@ -454,9 +517,11 @@ class AudioFlowApp {
             progressFill.style.width = percentage + '%';
         }
 
-        // Сохраняем прогресс каждые 10 секунд
-        if (Math.floor(currentTime) % 10 === 0) {
+        // Сохраняем прогресс каждые 30 секунд и только если позиция изменилась значительно
+        const lastSavedTime = this.lastSavedTime || 0;
+        if (Math.floor(currentTime) % 30 === 0 && Math.abs(currentTime - lastSavedTime) > 5) {
             this.saveProgress();
+            this.lastSavedTime = currentTime;
         }
     }
 
@@ -474,8 +539,10 @@ class AudioFlowApp {
                     duration: duration
                 })
             });
+            console.log(`Progress saved: ${position}s / ${duration}s`);
         } catch (error) {
-            console.error('Failed to save progress:', error);
+            // Не показываем ошибку пользователю если он не авторизован
+            console.log('Failed to save progress (user may not be authenticated):', error);
         }
     }
 
@@ -667,9 +734,29 @@ class AudioFlowApp {
             let searchTimeout;
             searchInput.addEventListener('input', (e) => {
                 clearTimeout(searchTimeout);
+                const query = e.target.value.trim();
+                
+                if (query === '') {
+                    // Если поиск очищен, возвращаемся к обычному списку
+                    this.loadBooks();
+                    const popularTitle = document.querySelector('.section-title');
+                    if (popularTitle) {
+                        popularTitle.textContent = 'Популярные';
+                    }
+                    return;
+                }
+                
                 searchTimeout = setTimeout(() => {
+                    this.searchBooks(query);
+                }, 500); // Увеличил задержку для уменьшения нагрузки
+            });
+            
+            // Обработка Enter
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    clearTimeout(searchTimeout);
                     this.searchBooks(e.target.value);
-                }, 300);
+                }
             });
         }
     }
@@ -680,14 +767,25 @@ class AudioFlowApp {
             return;
         }
 
+        if (query.length < 2) {
+            return; // Минимум 2 символа для поиска
+        }
+
         try {
-            const response = await this.apiCall(`/api/books/search?q=${encodeURIComponent(query)}`);
+            const response = await this.apiCall(`/api/books/search?q=${encodeURIComponent(query)}&limit=20`);
             if (response) {
                 this.books = response.books;
                 this.renderBooks();
+                
+                // Обновляем заголовок секции
+                const popularTitle = document.querySelector('.section-title');
+                if (popularTitle) {
+                    popularTitle.textContent = `Результаты поиска "${query}" (${response.total})`;
+                }
             }
         } catch (error) {
             console.error('Search failed:', error);
+            this.showError('Ошибка поиска');
         }
     }
 }
