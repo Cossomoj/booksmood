@@ -255,6 +255,29 @@ async def get_admin_categories(
 ):
     """Получение всех категорий"""
     categories = db.query(Category).all()
+    
+    # Если категорий нет, создаем тестовые
+    if not categories:
+        test_categories = [
+            {"name": "Классика", "emoji": "📚"},
+            {"name": "Фантастика", "emoji": "🚀"},
+            {"name": "Детективы", "emoji": "🕵️"},
+            {"name": "Романы", "emoji": "❤️"},
+            {"name": "Бизнес", "emoji": "💼"},
+            {"name": "Психология", "emoji": "🧠"},
+            {"name": "История", "emoji": "🏛️"},
+            {"name": "Биографии", "emoji": "👤"}
+        ]
+        
+        for cat_data in test_categories:
+            category = Category(**cat_data)
+            db.add(category)
+        
+        db.commit()
+        
+        # Обновляем список категорий
+        categories = db.query(Category).all()
+    
     return [CategoryResponse.model_validate(category) for category in categories]
 
 @router.get("/users", response_model=List[UserResponse])
