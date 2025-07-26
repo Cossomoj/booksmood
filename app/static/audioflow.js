@@ -495,7 +495,7 @@ class AudioFlowApp {
         notification.className = 'error-notification';
         notification.textContent = message;
         document.body.appendChild(notification);
-
+        
         setTimeout(() => {
             notification.remove();
         }, 3000);

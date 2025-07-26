@@ -1107,38 +1107,40 @@ async def admin_login_page(request: Request):
             </form>
             </div>
 
-    <script src="/static/audioflow.js"></script>
-    <script>
-            document.getElementById('loginForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
+        <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('error');
+            
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password
+                    })
+                });
                 
-                const username = document.getElementById('username').value;
-                const password = document.getElementById('password').value;
-                const errorDiv = document.getElementById('error');
-                
-                try {
-                    const response = await fetch('/api/admin/login', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ username, password })
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        localStorage.setItem('admin_token', data.access_token);
-                        window.location.href = '/admin/dashboard';
-                    } else {
-                        errorDiv.style.display = 'block';
-                        errorDiv.textContent = 'Неверное имя пользователя или пароль';
-                    }
-                } catch (error) {
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('admin_token', data.access_token);
+                    window.location.href = '/admin/dashboard';
+                } else {
                     errorDiv.style.display = 'block';
-                    errorDiv.textContent = 'Ошибка подключения к серверу';
+                    errorDiv.textContent = 'Неверное имя пользователя или пароль';
                 }
-            });
-        </script>
+            } catch (error) {
+                errorDiv.style.display = 'block';
+                errorDiv.textContent = 'Ошибка подключения к серверу';
+            }
+        });
+    </script>
     </body>
     </html>
     """)
